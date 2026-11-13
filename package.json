@@ -1,0 +1,45 @@
+{
+  "name": "pharmacy-api",
+  "version": "1.0.0",
+  "description": "REST API для системы управления интернет-аптекой (Node.js, Express, Prisma, PostgreSQL)",
+  "main": "src/server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\""
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "keywords": ["rest-api", "express", "prisma", "postgresql", "jwt", "pharmacy"],
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "argon2": "^0.45.2",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.4",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prisma": "^6.19.3"
+  },
+  "allowScripts": {
+    "argon2@0.45.2": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true
+  }
+}

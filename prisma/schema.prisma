@@ -1,0 +1,105 @@
+// Схема базы данных интернет-аптеки.
+// 5 сущностей: User, Category, Product, Order, OrderItem.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING    // создан, ожидает подтверждения
+  CONFIRMED  // подтверждён аптекой
+  SHIPPED    // передан в доставку
+  DELIVERED  // доставлен
+  CANCELLED  // отменён
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("users")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// Основная сущность — лекарственный товар (полный CRUD).
+model Product {
+  id                   Int      @id @default(autoincrement())
+  name                 String
+  description          String?
+  manufacturer         String
+  form                 String   // таблетки, капсулы, сироп, мазь, спрей…
+  dosage               String?  // например, «500 мг»
+  price                Int      // цена в тенге
+  stock                Int      @default(0) // наличие на складе
+  requiresPrescription Boolean  @default(false) @map("requires_prescription")
+  imageUrl             String?  @map("image_url")    // фото препарата (URL)
+  imageCredit          String?  @map("image_credit") // автор и лицензия фото
+  categoryId           Int      @map("category_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  userId    Int         @map("user_id")
+  status    OrderStatus @default(PENDING)
+  total     Int         // сумма заказа в тенге
+  address   String
+  phone     String
+  comment   String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items OrderItem[]
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int @id @default(autoincrement())
+  orderId   Int @map("order_id")
+  productId Int @map("product_id")
+  quantity  Int
+  price     Int // цена за единицу на момент заказа
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId])
+  @@map("order_items")
+}

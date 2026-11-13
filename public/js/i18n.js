@@ -1,0 +1,994 @@
+// Мультиязычность интерфейса: русский, казахский, английский.
+// Язык хранится в localStorage, по умолчанию берётся из настроек браузера.
+
+export const LANGS = [
+  { code: 'ru', label: 'Русский', short: 'Рус', locale: 'ru-RU' },
+  { code: 'kk', label: 'Қазақша', short: 'Қаз', locale: 'kk-KZ' },
+  { code: 'en', label: 'English', short: 'Eng', locale: 'en-US' },
+];
+
+const STORAGE_KEY = 'mint.lang';
+
+function detect() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (LANGS.some((l) => l.code === saved)) return saved;
+  } catch { /* ignore */ }
+  const nav = (navigator.language || 'ru').slice(0, 2).toLowerCase();
+  if (nav === 'kk') return 'kk';
+  if (nav === 'en') return 'en';
+  return 'ru';
+}
+
+let current = detect();
+const listeners = new Set();
+
+export const lang = () => current;
+export const locale = () => LANGS.find((l) => l.code === current).locale;
+export const onLangChange = (fn) => listeners.add(fn);
+
+export function setLang(code) {
+  if (!LANGS.some((l) => l.code === code) || code === current) return;
+  current = code;
+  try { localStorage.setItem(STORAGE_KEY, code); } catch { /* ignore */ }
+  document.documentElement.lang = code;
+  for (const fn of listeners) fn(code);
+}
+document.documentElement.lang = current;
+
+// ---------- Словарь ----------
+
+const D = {
+  ru: {
+    'brand': 'Мята',
+    'meta.title': 'Мята — интернет-аптека',
+    'skip': 'Перейти к содержимому',
+    'nav.catalog': 'Каталог',
+    'nav.orders': 'Мои заказы',
+    'nav.admin': 'Управление',
+    'nav.cart': 'Корзина',
+    'nav.home': 'Мята — на главную',
+    'nav.main': 'Основная навигация',
+    'account.login': 'Войти',
+    'account.logout': 'Выйти',
+    'account.admin': 'администратор',
+    'account.user': 'покупатель',
+    'toast.loggedOut': 'Вы вышли из аккаунта',
+    'toast.loggedIn': 'Вы вошли как {name}',
+    'toast.registered': 'Аккаунт создан',
+
+    'common.toCatalog': 'В каталог',
+    'common.retry': 'Повторить',
+    'common.cancel': 'Отмена',
+    'common.delete': 'Удалить',
+    'common.save': 'Сохранить',
+    'common.create': 'Создать',
+    'common.close': 'Закрыть',
+    'common.edit': 'Изменить',
+    'common.actions': 'Действия',
+    'common.pcs': 'шт.',
+    'common.total': 'Всего: {n}',
+    'common.optional': '(необязательно)',
+
+    'err.notFoundTitle': 'Страница не найдена',
+    'err.notFoundText': 'Такой страницы нет. Вернитесь в каталог.',
+    'err.forbiddenTitle': 'Нет доступа (403)',
+    'err.forbiddenText': 'Раздел управления доступен только администратору.',
+
+    'stock.out': 'Нет в наличии',
+    'stock.low': 'Осталось {n} шт.',
+    'stock.ok': 'В наличии',
+    'rx': 'По рецепту',
+    'card.add': 'Добавить «{name}» в корзину',
+    'cart.added': '«{name}» в корзине. <a href="#/cart">Оформить</a>',
+    'cart.limit': 'Больше «{name}» добавить нельзя: в наличии {n} шт.',
+
+    'hero.title': 'Лекарства рядом, <em>без очередей</em>',
+    'hero.lead': 'Ищите препараты по названию или производителю, проверяйте наличие и оформляйте заказ с доставкой по Алматы.',
+    'hero.searchLabel': 'Поиск лекарств',
+    'hero.placeholder': 'Например, ибупрофен',
+    'hero.find': 'Найти',
+    'hero.loading': 'Каталог загружается',
+    'hero.facts': '{n} {products} в {c} категориях',
+    'hero.delivery': 'Доставка по Алматы',
+    'hero.rx': 'Рецептурные препараты отдаём по рецепту врача',
+
+    'catalog.title': 'Каталог',
+    'catalog.categories': 'Категории',
+    'catalog.scrollLeft': 'Прокрутить категории влево',
+    'catalog.scrollRight': 'Прокрутить категории вправо',
+    'catalog.all': 'Все',
+    'catalog.inStock': 'В наличии',
+    'catalog.otc': 'Без рецепта',
+    'catalog.sort': 'Сортировка',
+    'sort.name': 'По названию',
+    'sort.price_asc': 'Сначала дешевле',
+    'sort.price_desc': 'Сначала дороже',
+    'sort.newest': 'Новинки',
+    'catalog.results': 'Результаты по запросу «{q}»',
+    'catalog.emptyTitle': 'Ничего не нашлось',
+    'catalog.emptyText': 'Попробуйте изменить запрос или сбросить фильтры.',
+    'catalog.reset': 'Сбросить фильтры',
+    'catalog.errorTitle': 'Не удалось загрузить каталог',
+    'catalog.pages': 'Страницы',
+    'catalog.prev': 'Назад',
+    'catalog.next': 'Дальше',
+    'catalog.pageOf': '{page} из {pages}',
+
+    'product.notFound': 'Товар не найден',
+    'product.notFoundText': 'Возможно, его уже убрали из каталога.',
+    'product.error': 'Не удалось загрузить товар',
+    'product.form': 'Форма выпуска',
+    'product.dosage': 'Дозировка',
+    'product.manufacturer': 'Производитель',
+    'product.category': 'Категория',
+    'product.availability': 'Наличие',
+    'product.none': 'нет',
+    'product.qty': 'Количество',
+    'product.less': 'Уменьшить',
+    'product.more': 'Увеличить',
+    'product.toCart': 'В корзину',
+    'product.rxNotice': 'Рецептурный препарат. Курьер попросит показать рецепт врача при получении.',
+    'product.maxInCart': 'В корзине уже максимум: {n} шт.',
+    'product.added': 'Добавлено {n} шт. <a href="#/cart">Перейти в корзину</a>',
+    'product.descNote': 'Описание доступно на русском языке',
+
+    'cart.title': 'Корзина',
+    'cart.emptyTitle': 'Корзина пуста',
+    'cart.emptyText': 'Добавьте препараты из каталога, чтобы оформить заказ.',
+    'cart.goCatalog': 'Перейти в каталог',
+    'cart.perPcs': '{price}/шт.',
+    'cart.remove': 'Удалить {name}',
+    'cart.checkout': 'Оформление заказа',
+    'cart.delivery': 'Доставка',
+    'cart.free': 'Бесплатно',
+    'cart.total': 'Итого',
+    'cart.rxNotice': 'В заказе есть рецептурные препараты, подготовьте рецепт к приходу курьера.',
+    'cart.address': 'Адрес доставки',
+    'cart.addressPh': 'Алматы, ул. Абая, 10, кв. 5',
+    'cart.phone': 'Телефон',
+    'cart.comment': 'Комментарий',
+    'cart.commentPh': 'Код домофона, удобное время',
+    'cart.submit': 'Оформить заказ',
+    'cart.loginNotice': 'Чтобы оформить заказ, войдите или зарегистрируйтесь. Корзина сохранится.',
+    'cart.loginBtn': 'Войти и оформить',
+    'cart.placed': 'Заказ №{id} оформлен на {total}',
+
+    'auth.loginTitle': 'Вход',
+    'auth.loginSub': 'Войдите, чтобы оформлять заказы и следить за их статусом.',
+    'auth.email': 'Email',
+    'auth.password': 'Пароль',
+    'auth.loginBtn': 'Войти',
+    'auth.noAccount': 'Нет аккаунта?',
+    'auth.toRegister': 'Зарегистрироваться',
+    'auth.registerTitle': 'Регистрация',
+    'auth.registerSub': 'Аккаунт нужен, чтобы оформлять заказы.',
+    'auth.name': 'Имя',
+    'auth.pwHint': 'Минимум 8 символов, хотя бы одна буква и одна цифра',
+    'auth.registerBtn': 'Создать аккаунт',
+    'auth.haveAccount': 'Уже есть аккаунт?',
+
+    'orders.title': 'Мои заказы',
+    'orders.titleAdmin': 'Заказы',
+    'orders.emptyTitle': 'Заказов пока нет',
+    'orders.emptyText': 'Оформленные заказы появятся здесь вместе со статусом доставки.',
+    'orders.error': 'Не удалось загрузить заказы',
+    'orders.order': 'Заказ №{id}',
+    'orders.cancel': 'Отменить заказ',
+    'orders.cancelTitle': 'Отменить заказ №{id}?',
+    'orders.cancelText': 'Товары вернутся на склад. Восстановить заказ будет нельзя.',
+    'orders.cancelled': 'Заказ отменён',
+
+    'status.PENDING': 'Ожидает подтверждения',
+    'status.CONFIRMED': 'Подтверждён',
+    'status.SHIPPED': 'В доставке',
+    'status.DELIVERED': 'Доставлен',
+    'status.CANCELLED': 'Отменён',
+
+    'admin.title': 'Управление аптекой',
+    'admin.sections': 'Разделы',
+    'tab.overview': 'Обзор',
+    'tab.orders': 'Заказы',
+    'tab.products': 'Товары',
+    'tab.categories': 'Категории',
+    'tab.users': 'Пользователи',
+    'admin.loadError': 'Не удалось загрузить данные',
+    'admin.error': 'Ошибка',
+
+    'dash.period': 'Период',
+    'dash.days': '{n} дн.',
+    'dash.note': 'Данные за последние {n} дней, отменённые заказы не входят в выручку',
+    'dash.vsPrev': 'к прошлым {n} дн.',
+    'dash.noPrev': 'нет данных за прошлый период',
+    'dash.same': 'без изменений',
+    'dash.revenue': 'Выручка',
+    'dash.orders': 'Заказы',
+    'dash.avg': 'Средний чек',
+    'dash.customers': 'Покупатели',
+    'dash.revByDay': 'Выручка по дням',
+    'dash.asTable': 'Показать таблицей',
+    'dash.date': 'Дата',
+    'dash.ordersCol': 'Заказов',
+    'dash.statuses': 'Статусы заказов',
+    'dash.confirmN': 'Подтвердить: {n}',
+    'dash.top': 'Хиты продаж',
+    'dash.noSales': 'За период продаж нет',
+    'dash.low': 'Заканчивается',
+    'dash.outOf': '{n} из {total} нет в наличии',
+    'dash.allGood': 'Все позиции в достатке',
+    'dash.editStock': 'Изменить остаток {name}',
+    'dash.chartLabel': 'Выручка по дням за {n} дней, максимум {max}',
+    'dash.tipOrders': '{n} {orders}',
+
+    'ao.allStatuses': 'Все статусы',
+    'ao.filter': 'Фильтр по статусу',
+    'ao.empty': 'Заказов нет',
+    'ao.emptyText': 'Попробуйте другой фильтр.',
+    'ao.customer': 'Покупатель',
+    'ao.items': 'Состав',
+    'ao.sum': 'Сумма',
+    'ao.date': 'Дата',
+    'ao.status': 'Статус',
+    'ao.statusOf': 'Статус заказа {id}',
+    'ao.changed': 'Заказ №{id}: {status}',
+    'ao.cancelText': 'Товары вернутся на склад.',
+
+    'ap.search': 'Поиск по названию',
+    'ap.searchAria': 'Поиск товаров',
+    'ap.new': 'Новый товар',
+    'ap.empty': 'Товары не найдены',
+    'ap.emptyText': 'Измените запрос или добавьте новый товар.',
+    'ap.product': 'Товар',
+    'ap.price': 'Цена',
+    'ap.stock': 'Остаток',
+    'ap.rx': 'Рецепт',
+    'ap.yes': 'Да',
+    'ap.no': 'Нет',
+    'ap.deleteTitle': 'Удалить «{name}»?',
+    'ap.deleteText': 'Товар исчезнет из каталога. Действие необратимо.',
+    'ap.deleted': 'Товар удалён',
+    'ap.saved': 'Товар сохранён',
+    'ap.created': 'Товар «{name}» создан',
+    'ap.formTitle': 'Товар №{id}',
+    'ap.name': 'Название',
+    'ap.priceT': 'Цена, ₸',
+    'ap.stockPcs': 'Остаток, шт.',
+    'ap.rxCheck': 'Отпускается по рецепту',
+    'ap.photo': 'Ссылка на фото',
+    'ap.photoHint': 'Только https, лучше свободная лицензия (Wikimedia Commons)',
+    'ap.credit': 'Автор и лицензия фото',
+    'ap.creditPh': 'Фото: Иван Иванов, CC BY-SA 4.0',
+    'ap.desc': 'Описание',
+    'ap.dosagePh': '500 мг, 20 шт',
+
+    'ac.new': 'Новая категория',
+    'ac.slug': 'Slug',
+    'ac.slugHint': 'Латиница, цифры и дефис, используется в адресах',
+    'ac.count': 'Товаров',
+    'ac.deleteTitle': 'Удалить категорию «{name}»?',
+    'ac.deleteText': 'Удалить можно только пустую категорию.',
+    'ac.deleted': 'Категория удалена',
+    'ac.saved': 'Категория сохранена',
+    'ac.created': 'Категория создана',
+    'ac.formTitle': 'Категория №{id}',
+
+    'au.name': 'Имя',
+    'au.role': 'Роль',
+    'au.roleOf': 'Роль {name}',
+    'au.ordersCount': 'Заказов',
+    'au.registered': 'Регистрация',
+    'au.you': '(вы)',
+    'au.admin': 'Администратор',
+    'au.user': 'Покупатель',
+    'au.roleChanged': 'Роль изменена',
+    'au.deleteTitle': 'Удалить пользователя «{name}»?',
+    'au.deleteText': 'Вместе с ним удалятся все его заказы. Действие необратимо.',
+    'au.deleted': 'Пользователь удалён',
+
+    'foot.info': 'Информация',
+    'foot.buyer': 'Покупателю',
+    'foot.docs': 'Документы',
+    'foot.contacts': 'Контакты',
+    'foot.hours': 'Ежедневно с 9:00 до 21:00',
+    'foot.city': 'Ваш город: Алматы',
+    'foot.copy': '© Мята, интернет-аптека, 2026',
+    'foot.orderStatus': 'Статус заказа',
+    'foot.lang': 'Язык',
+
+    'unit.products': { one: 'препарат', few: 'препарата', many: 'препаратов', other: 'препарата' },
+    'unit.items': { one: 'товар', few: 'товара', many: 'товаров', other: 'товара' },
+    'unit.orders': { one: 'заказ', few: 'заказа', many: 'заказов', other: 'заказа' },
+
+    'apiErr.network': 'Нет соединения с сервером. Проверьте, что API запущен',
+  },
+
+  kk: {
+    'brand': 'Мята',
+    'meta.title': 'Мята — интернет-дәріхана',
+    'skip': 'Мазмұнға өту',
+    'nav.catalog': 'Каталог',
+    'nav.orders': 'Тапсырыстарым',
+    'nav.admin': 'Басқару',
+    'nav.cart': 'Себет',
+    'nav.home': 'Мята — басты бет',
+    'nav.main': 'Негізгі навигация',
+    'account.login': 'Кіру',
+    'account.logout': 'Шығу',
+    'account.admin': 'әкімші',
+    'account.user': 'сатып алушы',
+    'toast.loggedOut': 'Аккаунттан шықтыңыз',
+    'toast.loggedIn': '{name} ретінде кірдіңіз',
+    'toast.registered': 'Аккаунт құрылды',
+
+    'common.toCatalog': 'Каталогқа',
+    'common.retry': 'Қайталау',
+    'common.cancel': 'Болдырмау',
+    'common.delete': 'Жою',
+    'common.save': 'Сақтау',
+    'common.create': 'Құру',
+    'common.close': 'Жабу',
+    'common.edit': 'Өзгерту',
+    'common.actions': 'Әрекеттер',
+    'common.pcs': 'дана',
+    'common.total': 'Барлығы: {n}',
+    'common.optional': '(міндетті емес)',
+
+    'err.notFoundTitle': 'Бет табылмады',
+    'err.notFoundText': 'Мұндай бет жоқ. Каталогқа оралыңыз.',
+    'err.forbiddenTitle': 'Қолжетімсіз (403)',
+    'err.forbiddenText': 'Басқару бөлімі тек әкімшіге қолжетімді.',
+
+    'stock.out': 'Қолда жоқ',
+    'stock.low': '{n} дана қалды',
+    'stock.ok': 'Қолда бар',
+    'rx': 'Рецептпен',
+    'card.add': '«{name}» себетке қосу',
+    'cart.added': '«{name}» себетте. <a href="#/cart">Рәсімдеу</a>',
+    'cart.limit': '«{name}» көбірек қосу мүмкін емес: қолда {n} дана.',
+
+    'hero.title': 'Дәрілер жақын, <em>кезексіз</em>',
+    'hero.lead': 'Препараттарды атауы немесе өндірушісі бойынша іздеңіз, қолда барын тексеріп, Алматы бойынша жеткізумен тапсырыс беріңіз.',
+    'hero.searchLabel': 'Дәрі іздеу',
+    'hero.placeholder': 'Мысалы, ибупрофен',
+    'hero.find': 'Табу',
+    'hero.loading': 'Каталог жүктелуде',
+    'hero.facts': '{c} санатта {n} {products}',
+    'hero.delivery': 'Алматы бойынша жеткізу',
+    'hero.rx': 'Рецептілік препараттар дәрігер рецептімен беріледі',
+
+    'catalog.title': 'Каталог',
+    'catalog.categories': 'Санаттар',
+    'catalog.scrollLeft': 'Санаттарды солға айналдыру',
+    'catalog.scrollRight': 'Санаттарды оңға айналдыру',
+    'catalog.all': 'Барлығы',
+    'catalog.inStock': 'Қолда бар',
+    'catalog.otc': 'Рецептсіз',
+    'catalog.sort': 'Сұрыптау',
+    'sort.name': 'Атауы бойынша',
+    'sort.price_asc': 'Алдымен арзаны',
+    'sort.price_desc': 'Алдымен қымбаты',
+    'sort.newest': 'Жаңалары',
+    'catalog.results': '«{q}» сұрауы бойынша нәтижелер',
+    'catalog.emptyTitle': 'Ештеңе табылмады',
+    'catalog.emptyText': 'Сұрауды өзгертіп көріңіз немесе сүзгілерді тастаңыз.',
+    'catalog.reset': 'Сүзгілерді тастау',
+    'catalog.errorTitle': 'Каталогты жүктеу мүмкін болмады',
+    'catalog.pages': 'Беттер',
+    'catalog.prev': 'Артқа',
+    'catalog.next': 'Әрі қарай',
+    'catalog.pageOf': '{page} / {pages}',
+
+    'product.notFound': 'Тауар табылмады',
+    'product.notFoundText': 'Мүмкін, ол каталогтан алынып тасталған.',
+    'product.error': 'Тауарды жүктеу мүмкін болмады',
+    'product.form': 'Шығарылу түрі',
+    'product.dosage': 'Мөлшері',
+    'product.manufacturer': 'Өндіруші',
+    'product.category': 'Санат',
+    'product.availability': 'Қолда бары',
+    'product.none': 'жоқ',
+    'product.qty': 'Саны',
+    'product.less': 'Азайту',
+    'product.more': 'Көбейту',
+    'product.toCart': 'Себетке',
+    'product.rxNotice': 'Рецептілік препарат. Курьер алу кезінде дәрігер рецептін көрсетуді сұрайды.',
+    'product.maxInCart': 'Себетте ең көп мөлшер: {n} дана.',
+    'product.added': '{n} дана қосылды. <a href="#/cart">Себетке өту</a>',
+    'product.descNote': 'Сипаттама орыс тілінде қолжетімді',
+
+    'cart.title': 'Себет',
+    'cart.emptyTitle': 'Себет бос',
+    'cart.emptyText': 'Тапсырыс беру үшін каталогтан препараттар қосыңыз.',
+    'cart.goCatalog': 'Каталогқа өту',
+    'cart.perPcs': '{price}/дана',
+    'cart.remove': '{name} жою',
+    'cart.checkout': 'Тапсырысты рәсімдеу',
+    'cart.delivery': 'Жеткізу',
+    'cart.free': 'Тегін',
+    'cart.total': 'Жиыны',
+    'cart.rxNotice': 'Тапсырыста рецептілік препараттар бар, курьер келгенге дейін рецептті дайындаңыз.',
+    'cart.address': 'Жеткізу мекенжайы',
+    'cart.addressPh': 'Алматы, Абай к-сі, 10, 5 пәтер',
+    'cart.phone': 'Телефон',
+    'cart.comment': 'Түсініктеме',
+    'cart.commentPh': 'Домофон коды, ыңғайлы уақыт',
+    'cart.submit': 'Тапсырыс беру',
+    'cart.loginNotice': 'Тапсырыс беру үшін кіріңіз немесе тіркеліңіз. Себет сақталады.',
+    'cart.loginBtn': 'Кіріп, рәсімдеу',
+    'cart.placed': '№{id} тапсырыс {total} сомасына рәсімделді',
+
+    'auth.loginTitle': 'Кіру',
+    'auth.loginSub': 'Тапсырыс беру және олардың күйін бақылау үшін кіріңіз.',
+    'auth.email': 'Email',
+    'auth.password': 'Құпиясөз',
+    'auth.loginBtn': 'Кіру',
+    'auth.noAccount': 'Аккаунтыңыз жоқ па?',
+    'auth.toRegister': 'Тіркелу',
+    'auth.registerTitle': 'Тіркелу',
+    'auth.registerSub': 'Тапсырыс беру үшін аккаунт қажет.',
+    'auth.name': 'Аты',
+    'auth.pwHint': 'Кемінде 8 таңба, кемінде бір әріп және бір сан',
+    'auth.registerBtn': 'Аккаунт құру',
+    'auth.haveAccount': 'Аккаунтыңыз бар ма?',
+
+    'orders.title': 'Тапсырыстарым',
+    'orders.titleAdmin': 'Тапсырыстар',
+    'orders.emptyTitle': 'Әзірге тапсырыс жоқ',
+    'orders.emptyText': 'Рәсімделген тапсырыстар осында жеткізу күйімен бірге көрсетіледі.',
+    'orders.error': 'Тапсырыстарды жүктеу мүмкін болмады',
+    'orders.order': '№{id} тапсырыс',
+    'orders.cancel': 'Тапсырыстан бас тарту',
+    'orders.cancelTitle': '№{id} тапсырыстан бас тарту керек пе?',
+    'orders.cancelText': 'Тауарлар қоймаға қайтарылады. Тапсырысты қалпына келтіру мүмкін болмайды.',
+    'orders.cancelled': 'Тапсырыстан бас тартылды',
+
+    'status.PENDING': 'Растауды күтуде',
+    'status.CONFIRMED': 'Расталды',
+    'status.SHIPPED': 'Жеткізілуде',
+    'status.DELIVERED': 'Жеткізілді',
+    'status.CANCELLED': 'Бас тартылды',
+
+    'admin.title': 'Дәріхананы басқару',
+    'admin.sections': 'Бөлімдер',
+    'tab.overview': 'Шолу',
+    'tab.orders': 'Тапсырыстар',
+    'tab.products': 'Тауарлар',
+    'tab.categories': 'Санаттар',
+    'tab.users': 'Пайдаланушылар',
+    'admin.loadError': 'Деректерді жүктеу мүмкін болмады',
+    'admin.error': 'Қате',
+
+    'dash.period': 'Кезең',
+    'dash.days': '{n} күн',
+    'dash.note': 'Соңғы {n} күндегі деректер, бас тартылған тапсырыстар түсімге кірмейді',
+    'dash.vsPrev': 'алдыңғы {n} күнмен салыстырғанда',
+    'dash.noPrev': 'алдыңғы кезеңде деректер жоқ',
+    'dash.same': 'өзгеріссіз',
+    'dash.revenue': 'Түсім',
+    'dash.orders': 'Тапсырыстар',
+    'dash.avg': 'Орташа чек',
+    'dash.customers': 'Сатып алушылар',
+    'dash.revByDay': 'Күндер бойынша түсім',
+    'dash.asTable': 'Кесте түрінде көрсету',
+    'dash.date': 'Күні',
+    'dash.ordersCol': 'Тапсырыс',
+    'dash.statuses': 'Тапсырыс күйлері',
+    'dash.confirmN': 'Растау: {n}',
+    'dash.top': 'Көп сатылатындар',
+    'dash.noSales': 'Кезеңде сатылым жоқ',
+    'dash.low': 'Таусылып жатыр',
+    'dash.outOf': '{total} ішінен {n} қолда жоқ',
+    'dash.allGood': 'Барлық позиция жеткілікті',
+    'dash.editStock': '{name} қалдығын өзгерту',
+    'dash.chartLabel': '{n} күндегі түсім, ең көбі {max}',
+    'dash.tipOrders': '{n} {orders}',
+
+    'ao.allStatuses': 'Барлық күйлер',
+    'ao.filter': 'Күй бойынша сүзгі',
+    'ao.empty': 'Тапсырыс жоқ',
+    'ao.emptyText': 'Басқа сүзгіні таңдап көріңіз.',
+    'ao.customer': 'Сатып алушы',
+    'ao.items': 'Құрамы',
+    'ao.sum': 'Сома',
+    'ao.date': 'Күні',
+    'ao.status': 'Күйі',
+    'ao.statusOf': '{id} тапсырыстың күйі',
+    'ao.changed': '№{id} тапсырыс: {status}',
+    'ao.cancelText': 'Тауарлар қоймаға қайтарылады.',
+
+    'ap.search': 'Атауы бойынша іздеу',
+    'ap.searchAria': 'Тауарларды іздеу',
+    'ap.new': 'Жаңа тауар',
+    'ap.empty': 'Тауарлар табылмады',
+    'ap.emptyText': 'Сұрауды өзгертіңіз немесе жаңа тауар қосыңыз.',
+    'ap.product': 'Тауар',
+    'ap.price': 'Бағасы',
+    'ap.stock': 'Қалдық',
+    'ap.rx': 'Рецепт',
+    'ap.yes': 'Иә',
+    'ap.no': 'Жоқ',
+    'ap.deleteTitle': '«{name}» жою керек пе?',
+    'ap.deleteText': 'Тауар каталогтан жойылады. Әрекетті қайтару мүмкін емес.',
+    'ap.deleted': 'Тауар жойылды',
+    'ap.saved': 'Тауар сақталды',
+    'ap.created': '«{name}» тауары құрылды',
+    'ap.formTitle': '№{id} тауар',
+    'ap.name': 'Атауы',
+    'ap.priceT': 'Бағасы, ₸',
+    'ap.stockPcs': 'Қалдық, дана',
+    'ap.rxCheck': 'Рецептпен беріледі',
+    'ap.photo': 'Фото сілтемесі',
+    'ap.photoHint': 'Тек https, еркін лицензиясы барын таңдаған жөн (Wikimedia Commons)',
+    'ap.credit': 'Фото авторы мен лицензиясы',
+    'ap.creditPh': 'Фото: Иван Иванов, CC BY-SA 4.0',
+    'ap.desc': 'Сипаттамасы',
+    'ap.dosagePh': '500 мг, 20 дана',
+
+    'ac.new': 'Жаңа санат',
+    'ac.slug': 'Slug',
+    'ac.slugHint': 'Латын әріптері, сандар және сызықша, мекенжайларда қолданылады',
+    'ac.count': 'Тауарлар',
+    'ac.deleteTitle': '«{name}» санатын жою керек пе?',
+    'ac.deleteText': 'Тек бос санатты жоюға болады.',
+    'ac.deleted': 'Санат жойылды',
+    'ac.saved': 'Санат сақталды',
+    'ac.created': 'Санат құрылды',
+    'ac.formTitle': '№{id} санат',
+
+    'au.name': 'Аты',
+    'au.role': 'Рөлі',
+    'au.roleOf': '{name} рөлі',
+    'au.ordersCount': 'Тапсырыс',
+    'au.registered': 'Тіркелген күні',
+    'au.you': '(сіз)',
+    'au.admin': 'Әкімші',
+    'au.user': 'Сатып алушы',
+    'au.roleChanged': 'Рөл өзгертілді',
+    'au.deleteTitle': '«{name}» пайдаланушысын жою керек пе?',
+    'au.deleteText': 'Онымен бірге оның барлық тапсырысы жойылады. Әрекетті қайтару мүмкін емес.',
+    'au.deleted': 'Пайдаланушы жойылды',
+
+    'foot.info': 'Ақпарат',
+    'foot.buyer': 'Сатып алушыға',
+    'foot.docs': 'Құжаттар',
+    'foot.contacts': 'Байланыс',
+    'foot.hours': 'Күн сайын 9:00-ден 21:00-ге дейін',
+    'foot.city': 'Сіздің қалаңыз: Алматы',
+    'foot.copy': '© Мята, интернет-дәріхана, 2026',
+    'foot.orderStatus': 'Тапсырыс күйі',
+    'foot.lang': 'Тіл',
+
+    'unit.products': { other: 'препарат' },
+    'unit.items': { other: 'тауар' },
+    'unit.orders': { other: 'тапсырыс' },
+
+    'apiErr.network': 'Сервермен байланыс жоқ. API іске қосылғанын тексеріңіз',
+  },
+
+  en: {
+    'brand': 'Myata',
+    'meta.title': 'Myata online pharmacy',
+    'skip': 'Skip to content',
+    'nav.catalog': 'Catalog',
+    'nav.orders': 'My orders',
+    'nav.admin': 'Admin',
+    'nav.cart': 'Cart',
+    'nav.home': 'Myata home',
+    'nav.main': 'Main navigation',
+    'account.login': 'Sign in',
+    'account.logout': 'Sign out',
+    'account.admin': 'administrator',
+    'account.user': 'customer',
+    'toast.loggedOut': 'You signed out',
+    'toast.loggedIn': 'Signed in as {name}',
+    'toast.registered': 'Account created',
+
+    'common.toCatalog': 'Go to catalog',
+    'common.retry': 'Try again',
+    'common.cancel': 'Cancel',
+    'common.delete': 'Delete',
+    'common.save': 'Save',
+    'common.create': 'Create',
+    'common.close': 'Close',
+    'common.edit': 'Edit',
+    'common.actions': 'Actions',
+    'common.pcs': 'pcs',
+    'common.total': 'Total: {n}',
+    'common.optional': '(optional)',
+
+    'err.notFoundTitle': 'Page not found',
+    'err.notFoundText': 'This page does not exist. Go back to the catalog.',
+    'err.forbiddenTitle': 'Access denied (403)',
+    'err.forbiddenText': 'Only administrators can open this section.',
+
+    'stock.out': 'Out of stock',
+    'stock.low': '{n} left',
+    'stock.ok': 'In stock',
+    'rx': 'Prescription',
+    'card.add': 'Add {name} to cart',
+    'cart.added': '{name} is in your cart. <a href="#/cart">Check out</a>',
+    'cart.limit': 'You cannot add more {name}: {n} in stock.',
+
+    'hero.title': 'Medicine nearby, <em>no queues</em>',
+    'hero.lead': 'Search by drug name or manufacturer, check availability and order with delivery across Almaty.',
+    'hero.searchLabel': 'Search medicines',
+    'hero.placeholder': 'For example, ibuprofen',
+    'hero.find': 'Search',
+    'hero.loading': 'Loading catalog',
+    'hero.facts': '{n} {products} in {c} categories',
+    'hero.delivery': 'Delivery across Almaty',
+    'hero.rx': 'Prescription drugs only with a doctor’s prescription',
+
+    'catalog.title': 'Catalog',
+    'catalog.categories': 'Categories',
+    'catalog.scrollLeft': 'Scroll categories left',
+    'catalog.scrollRight': 'Scroll categories right',
+    'catalog.all': 'All',
+    'catalog.inStock': 'In stock',
+    'catalog.otc': 'No prescription',
+    'catalog.sort': 'Sort',
+    'sort.name': 'By name',
+    'sort.price_asc': 'Price: low to high',
+    'sort.price_desc': 'Price: high to low',
+    'sort.newest': 'Newest',
+    'catalog.results': 'Results for "{q}"',
+    'catalog.emptyTitle': 'Nothing found',
+    'catalog.emptyText': 'Try a different query or reset the filters.',
+    'catalog.reset': 'Reset filters',
+    'catalog.errorTitle': 'Could not load the catalog',
+    'catalog.pages': 'Pages',
+    'catalog.prev': 'Previous',
+    'catalog.next': 'Next',
+    'catalog.pageOf': '{page} of {pages}',
+
+    'product.notFound': 'Product not found',
+    'product.notFoundText': 'It may have been removed from the catalog.',
+    'product.error': 'Could not load the product',
+    'product.form': 'Dosage form',
+    'product.dosage': 'Strength',
+    'product.manufacturer': 'Manufacturer',
+    'product.category': 'Category',
+    'product.availability': 'Availability',
+    'product.none': 'none',
+    'product.qty': 'Quantity',
+    'product.less': 'Decrease',
+    'product.more': 'Increase',
+    'product.toCart': 'Add to cart',
+    'product.rxNotice': 'Prescription drug. The courier will ask to see your prescription on delivery.',
+    'product.maxInCart': 'Your cart already has the maximum: {n} pcs.',
+    'product.added': 'Added {n} pcs. <a href="#/cart">Go to cart</a>',
+    'product.descNote': 'Description is available in Russian',
+
+    'cart.title': 'Cart',
+    'cart.emptyTitle': 'Your cart is empty',
+    'cart.emptyText': 'Add medicines from the catalog to place an order.',
+    'cart.goCatalog': 'Go to catalog',
+    'cart.perPcs': '{price} each',
+    'cart.remove': 'Remove {name}',
+    'cart.checkout': 'Checkout',
+    'cart.delivery': 'Delivery',
+    'cart.free': 'Free',
+    'cart.total': 'Total',
+    'cart.rxNotice': 'Your order has prescription drugs. Have the prescription ready for the courier.',
+    'cart.address': 'Delivery address',
+    'cart.addressPh': 'Almaty, Abay St 10, apt 5',
+    'cart.phone': 'Phone',
+    'cart.comment': 'Comment',
+    'cart.commentPh': 'Door code, convenient time',
+    'cart.submit': 'Place order',
+    'cart.loginNotice': 'Sign in or create an account to place the order. Your cart stays saved.',
+    'cart.loginBtn': 'Sign in and check out',
+    'cart.placed': 'Order #{id} placed for {total}',
+
+    'auth.loginTitle': 'Sign in',
+    'auth.loginSub': 'Sign in to place orders and track their status.',
+    'auth.email': 'Email',
+    'auth.password': 'Password',
+    'auth.loginBtn': 'Sign in',
+    'auth.noAccount': 'No account yet?',
+    'auth.toRegister': 'Create one',
+    'auth.registerTitle': 'Create account',
+    'auth.registerSub': 'You need an account to place orders.',
+    'auth.name': 'Name',
+    'auth.pwHint': 'At least 8 characters with a letter and a digit',
+    'auth.registerBtn': 'Create account',
+    'auth.haveAccount': 'Already have an account?',
+
+    'orders.title': 'My orders',
+    'orders.titleAdmin': 'Orders',
+    'orders.emptyTitle': 'No orders yet',
+    'orders.emptyText': 'Your orders will appear here with their delivery status.',
+    'orders.error': 'Could not load orders',
+    'orders.order': 'Order #{id}',
+    'orders.cancel': 'Cancel order',
+    'orders.cancelTitle': 'Cancel order #{id}?',
+    'orders.cancelText': 'The items go back to stock. The order cannot be restored.',
+    'orders.cancelled': 'Order cancelled',
+
+    'status.PENDING': 'Awaiting confirmation',
+    'status.CONFIRMED': 'Confirmed',
+    'status.SHIPPED': 'Out for delivery',
+    'status.DELIVERED': 'Delivered',
+    'status.CANCELLED': 'Cancelled',
+
+    'admin.title': 'Pharmacy admin',
+    'admin.sections': 'Sections',
+    'tab.overview': 'Overview',
+    'tab.orders': 'Orders',
+    'tab.products': 'Products',
+    'tab.categories': 'Categories',
+    'tab.users': 'Users',
+    'admin.loadError': 'Could not load data',
+    'admin.error': 'Error',
+
+    'dash.period': 'Period',
+    'dash.days': '{n} days',
+    'dash.note': 'Last {n} days. Cancelled orders are excluded from revenue',
+    'dash.vsPrev': 'vs previous {n} days',
+    'dash.noPrev': 'no data for the previous period',
+    'dash.same': 'no change',
+    'dash.revenue': 'Revenue',
+    'dash.orders': 'Orders',
+    'dash.avg': 'Average order',
+    'dash.customers': 'Customers',
+    'dash.revByDay': 'Revenue by day',
+    'dash.asTable': 'Show as table',
+    'dash.date': 'Date',
+    'dash.ordersCol': 'Orders',
+    'dash.statuses': 'Order status',
+    'dash.confirmN': 'Confirm: {n}',
+    'dash.top': 'Best sellers',
+    'dash.noSales': 'No sales in this period',
+    'dash.low': 'Running low',
+    'dash.outOf': '{n} of {total} out of stock',
+    'dash.allGood': 'Everything is well stocked',
+    'dash.editStock': 'Edit stock for {name}',
+    'dash.chartLabel': 'Revenue by day for {n} days, peak {max}',
+    'dash.tipOrders': '{n} {orders}',
+
+    'ao.allStatuses': 'All statuses',
+    'ao.filter': 'Filter by status',
+    'ao.empty': 'No orders',
+    'ao.emptyText': 'Try a different filter.',
+    'ao.customer': 'Customer',
+    'ao.items': 'Items',
+    'ao.sum': 'Total',
+    'ao.date': 'Date',
+    'ao.status': 'Status',
+    'ao.statusOf': 'Status of order {id}',
+    'ao.changed': 'Order #{id}: {status}',
+    'ao.cancelText': 'The items go back to stock.',
+
+    'ap.search': 'Search by name',
+    'ap.searchAria': 'Search products',
+    'ap.new': 'New product',
+    'ap.empty': 'No products found',
+    'ap.emptyText': 'Change the query or add a new product.',
+    'ap.product': 'Product',
+    'ap.price': 'Price',
+    'ap.stock': 'Stock',
+    'ap.rx': 'Prescription',
+    'ap.yes': 'Yes',
+    'ap.no': 'No',
+    'ap.deleteTitle': 'Delete {name}?',
+    'ap.deleteText': 'The product disappears from the catalog. This cannot be undone.',
+    'ap.deleted': 'Product deleted',
+    'ap.saved': 'Product saved',
+    'ap.created': 'Product {name} created',
+    'ap.formTitle': 'Product #{id}',
+    'ap.name': 'Name',
+    'ap.priceT': 'Price, ₸',
+    'ap.stockPcs': 'Stock, pcs',
+    'ap.rxCheck': 'Prescription only',
+    'ap.photo': 'Photo URL',
+    'ap.photoHint': 'https only, ideally a free license (Wikimedia Commons)',
+    'ap.credit': 'Photo author and license',
+    'ap.creditPh': 'Photo: Jane Doe, CC BY-SA 4.0',
+    'ap.desc': 'Description',
+    'ap.dosagePh': '500 mg, 20 pcs',
+
+    'ac.new': 'New category',
+    'ac.slug': 'Slug',
+    'ac.slugHint': 'Latin letters, digits and hyphens, used in URLs',
+    'ac.count': 'Products',
+    'ac.deleteTitle': 'Delete category {name}?',
+    'ac.deleteText': 'Only an empty category can be deleted.',
+    'ac.deleted': 'Category deleted',
+    'ac.saved': 'Category saved',
+    'ac.created': 'Category created',
+    'ac.formTitle': 'Category #{id}',
+
+    'au.name': 'Name',
+    'au.role': 'Role',
+    'au.roleOf': 'Role of {name}',
+    'au.ordersCount': 'Orders',
+    'au.registered': 'Registered',
+    'au.you': '(you)',
+    'au.admin': 'Administrator',
+    'au.user': 'Customer',
+    'au.roleChanged': 'Role changed',
+    'au.deleteTitle': 'Delete user {name}?',
+    'au.deleteText': 'All their orders will be deleted too. This cannot be undone.',
+    'au.deleted': 'User deleted',
+
+    'foot.info': 'Information',
+    'foot.buyer': 'For customers',
+    'foot.docs': 'Documents',
+    'foot.contacts': 'Contacts',
+    'foot.hours': 'Daily from 9:00 to 21:00',
+    'foot.city': 'Your city: Almaty',
+    'foot.copy': '© Myata online pharmacy, 2026',
+    'foot.orderStatus': 'Order status',
+    'foot.lang': 'Language',
+
+    'unit.products': { one: 'medicine', other: 'medicines' },
+    'unit.items': { one: 'item', other: 'items' },
+    'unit.orders': { one: 'order', other: 'orders' },
+
+    'apiErr.network': 'No connection to the server. Check that the API is running',
+  },
+};
+
+export function t(key, vars = {}) {
+  const value = D[current][key] ?? D.ru[key] ?? key;
+  if (typeof value !== 'string') return key;
+  return value.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`));
+}
+
+// Слово с правильной формой для числа: unit('items', 5) → «товаров» / «items» / «тауар»
+export function unit(name, n) {
+  const forms = D[current][`unit.${name}`] ?? D.ru[`unit.${name}`];
+  const rule = new Intl.PluralRules(locale()).select(n);
+  return forms[rule] ?? forms.other ?? forms.many;
+}
+
+// ---------- Справочники: категории, формы выпуска ----------
+
+const CATEGORY = {
+  'pain-relief': { kk: 'Ауырсынуды басатын және қызуды түсіретін', en: 'Pain and fever' },
+  'cold-flu': { kk: 'Суық тию және тұмау', en: 'Cold and flu' },
+  'nervous-system': { kk: 'Жүйке жүйесі', en: 'Nervous system' },
+  allergy: { kk: 'Аллергия', en: 'Allergy' },
+  vitamins: { kk: 'Дәрумендер мен ББҚ', en: 'Vitamins and supplements' },
+  digestion: { kk: 'Ас қорыту', en: 'Digestion' },
+  antibiotics: { kk: 'Антибиотиктер', en: 'Antibiotics' },
+  cardio: { kk: 'Жүрек және тамырлар', en: 'Heart and blood vessels' },
+  'first-aid': { kk: 'Дәрі қобдишасы және күтім', en: 'First aid and care' },
+  skin: { kk: 'Тері', en: 'Skin' },
+  'eyes-ears': { kk: 'Көз бен құлақ', en: 'Eyes and ears' },
+  kids: { kk: 'Балаларға', en: 'Kids' },
+  diabetes: { kk: 'Қант диабеті', en: 'Diabetes' },
+  'mother-baby': { kk: 'Ана мен бала', en: 'Mother and baby' },
+  devices: { kk: 'Медтехника', en: 'Medical devices' },
+};
+
+export function categoryName(c) {
+  if (!c) return '';
+  return (current !== 'ru' && CATEGORY[c.slug]?.[current]) || c.name;
+}
+
+const FORMS = {
+  'Таблетки': { kk: 'Таблеткалар', en: 'Tablets' },
+  'Капсулы': { kk: 'Капсулалар', en: 'Capsules' },
+  'Сироп': { kk: 'Шәрбат', en: 'Syrup' },
+  'Раствор': { kk: 'Ерітінді', en: 'Solution' },
+  'Раствор для инъекций': { kk: 'Инъекцияға арналған ерітінді', en: 'Solution for injection' },
+  'Капли': { kk: 'Тамшылар', en: 'Drops' },
+  'Спрей': { kk: 'Спрей', en: 'Spray' },
+  'Порошок': { kk: 'Ұнтақ', en: 'Powder' },
+  'Пастилки': { kk: 'Пастилкалар', en: 'Lozenges' },
+  'Мазь': { kk: 'Жақпа май', en: 'Ointment' },
+  'Гель': { kk: 'Гель', en: 'Gel' },
+  'Пластырь': { kk: 'Пластырь', en: 'Plaster' },
+  'Крем': { kk: 'Крем', en: 'Cream' },
+  'Шампунь': { kk: 'Сусабын', en: 'Shampoo' },
+  'Прибор': { kk: 'Құрылғы', en: 'Device' },
+  'Тест-полоски': { kk: 'Тест-жолақтар', en: 'Test strips' },
+};
+
+export const formName = (f) => (current !== 'ru' && FORMS[f]?.[current]) || f;
+
+// Единицы в строке дозировки: «20 шт» → «20 дана» / «20 pcs».
+// \b в JS не работает с кириллицей, поэтому границы слова задаются через \p{L}.
+const word = (w) => new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, 'gu');
+const DOSAGE = {
+  kk: [['шт', 'дана'], ['ампул', 'ампула'], ['пакетиков', 'пакет']],
+  en: [['шт', 'pcs'], ['ампул', 'ampoules'], ['пакетиков', 'sachets'], ['мг', 'mg'], ['мл', 'ml'], ['г', 'g'], ['МЕ', 'IU'], ['ЕД', 'U']],
+};
+export function dosageText(d) {
+  if (!d || current === 'ru') return d ?? '';
+  return DOSAGE[current].reduce((s, [from, to]) => s.replace(word(from), to), d);
+}
+
+// ---------- Числа и даты ----------
+// Не во всех браузерах есть полные данные ICU для казахского (Intl выдаёт «1,870» и «M11 14»),
+// поэтому для kk числа форматируются как в ru-RU, а названия месяцев и дней недели берутся из таблиц.
+
+const KK_MONTHS = ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан'];
+const KK_MONTHS_SHORT = ['қаң.', 'ақп.', 'нау.', 'сәу.', 'мам.', 'мау.', 'шіл.', 'там.', 'қыр.', 'қаз.', 'қар.', 'жел.'];
+const KK_WEEKDAYS = ['жс', 'дс', 'сс', 'ср', 'бс', 'жм', 'сб'];
+
+const numberLocale = () => (current === 'kk' ? 'ru-RU' : locale());
+
+export const fmtNumber = (n) => new Intl.NumberFormat(numberLocale()).format(n);
+
+export function fmtCompact(n) {
+  if (current === 'kk') {
+    if (n >= 1_000_000) return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(n / 1_000_000)} млн`;
+    if (n >= 1_000) return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(n / 1_000)} мың`;
+    return String(n);
+  }
+  return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+}
+
+// style: 'full' (14 ноября 2026, 18:05), 'dayMonth' (14 нояб.), 'dayMonthWeekday' (пт, 14 ноября)
+export function fmtDate(value, style = 'full') {
+  const d = new Date(value);
+  if (current === 'kk') {
+    const day = d.getDate();
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (style === 'dayMonth') return `${day} ${KK_MONTHS_SHORT[d.getMonth()]}`;
+    if (style === 'dayMonthWeekday') return `${KK_WEEKDAYS[d.getDay()]}, ${day} ${KK_MONTHS[d.getMonth()]}`;
+    return `${day} ${KK_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${time}`;
+  }
+  const opts = {
+    full: { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' },
+    dayMonth: { day: 'numeric', month: 'short' },
+    dayMonthWeekday: { day: 'numeric', month: 'long', weekday: 'short' },
+  }[style];
+  return new Intl.DateTimeFormat(locale(), opts).format(d);
+}
+
+// ---------- Ошибки API на выбранном языке ----------
+// Сервер отвечает по-русски (так описано в README). Для kk/en сообщение
+// подбирается по коду ответа, а поля из details подписываются по-человечески.
+
+const FIELD = {
+  kk: { email: 'Email', name: 'Аты', password: 'Құпиясөз', address: 'Мекенжай', phone: 'Телефон', comment: 'Түсініктеме', price: 'Бағасы', stock: 'Қалдық', manufacturer: 'Өндіруші', form: 'Шығарылу түрі', dosage: 'Мөлшері', categoryId: 'Санат', imageUrl: 'Фото', slug: 'Slug', description: 'Сипаттама' },
+  en: { email: 'Email', name: 'Name', password: 'Password', address: 'Address', phone: 'Phone', comment: 'Comment', price: 'Price', stock: 'Stock', manufacturer: 'Manufacturer', form: 'Dosage form', dosage: 'Strength', categoryId: 'Category', imageUrl: 'Photo', slug: 'Slug', description: 'Description' },
+};
+
+const STATUS_MSG = {
+  kk: {
+    0: 'Сервермен байланыс жоқ',
+    400: 'Енгізілген деректерді тексеріңіз',
+    401: 'Кіру қажет',
+    403: 'Бұл әрекетке құқығыңыз жоқ',
+    404: 'Табылмады',
+    409: 'Әрекетті орындау мүмкін емес: деректер қайшылығы',
+    413: 'Сұрау тым үлкен',
+    429: 'Тым көп әрекет. 15 минуттан кейін қайталаңыз',
+    500: 'Сервер қатесі',
+  },
+  en: {
+    0: 'No connection to the server',
+    400: 'Please check the entered data',
+    401: 'Please sign in',
+    403: 'You do not have permission for this action',
+    404: 'Not found',
+    409: 'The action conflicts with existing data',
+    413: 'The request is too large',
+    429: 'Too many attempts. Try again in 15 minutes',
+    500: 'Server error',
+  },
+};
+
+const KNOWN = [
+  [/Неверный email или пароль/, { kk: 'Email немесе құпиясөз қате', en: 'Wrong email or password' }],
+  [/уже зарегистрирован/, { kk: 'Бұл email тіркелген', en: 'This email is already registered' }],
+  [/Недостаточно товара/, { kk: 'Қоймада тауар жеткіліксіз', en: 'Not enough stock for this order' }],
+  [/Срок действия токена/, { kk: 'Сессия аяқталды, қайта кіріңіз', en: 'Your session expired, sign in again' }],
+  [/нельзя|Нельзя/, null],
+];
+
+export function localizeError(err) {
+  if (current === 'ru' || !err) return err;
+  const known = KNOWN.find(([re]) => re.test(err.message || ''));
+  const message = known?.[1]?.[current] ?? STATUS_MSG[current][err.status] ?? STATUS_MSG[current][500];
+  const details = Array.isArray(err.details)
+    ? [...new Set(err.details.map((d) => FIELD[current][d.field] ?? d.field))].map((f) => ({
+        message: current === 'kk' ? `«${f}» өрісін тексеріңіз` : `Check the "${f}" field`,
+      }))
+    : undefined;
+  return { ...err, status: err.status, message, details };
+}
