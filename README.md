@@ -3,6 +3,8 @@
 Курсовая работа по ПМ4 «Разработка браузерных приложений».
 Серверное приложение на **Node.js (ES Modules) + Express 5 + Prisma ORM + PostgreSQL** с регистрацией, входом по **JWT**, ролями **user / admin**, полным CRUD товаров, заказами со списанием остатков и веб-интерфейсом «Мята».
 
+**Сайт:** https://pharmacy-myata.onrender.com · **API:** https://pharmacy-myata.onrender.com/api/health
+
 ## Содержание
 
 1. [Возможности](#возможности)
