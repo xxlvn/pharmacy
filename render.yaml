@@ -2,7 +2,7 @@
 # База данных — PostgreSQL на Neon (https://neon.tech), строка подключения задаётся в DATABASE_URL.
 services:
   - type: web
-    name: pharmacy
+    name: pharmacy-myata
     runtime: node
     plan: free
     region: frankfurt
