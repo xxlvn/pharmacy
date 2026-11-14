@@ -207,9 +207,9 @@ function drawRevenueChart(box, daily, readout) {
           <stop offset="1" stop-color="#84bf04" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      ${ticks.map((t) => `
-        <line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/>
-        <text class="axis" x="${pad.l - 10}" y="${y(t) + 4}" text-anchor="end">${t === 0 ? '0' : compact.format(t)}</text>`).join('')}
+      ${ticks.map((tick) => `
+        <line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(tick)}" y2="${y(tick)}"/>
+        <text class="axis" x="${pad.l - 10}" y="${y(tick) + 4}" text-anchor="end">${tick === 0 ? '0' : compact.format(tick)}</text>`).join('')}
       ${daily.map((d, i) => (i % step === 0 || i === daily.length - 1) && !(i !== daily.length - 1 && daily.length - 1 - i < step / 2)
         ? `<text class="axis" x="${x(i)}" y="${H - 8}" text-anchor="middle">${shortDate.format(new Date(d.date))}</text>` : '').join('')}
       <path d="${area}" fill="url(#rev-fill)"/>
@@ -412,10 +412,11 @@ async function productsPanel(panel) {
     </div>
     <div data-table></div>`;
 
-  let t;
+  // Имя не «t»: так называется функция перевода из i18n.js
+  let searchTimer;
   panel.querySelector('[data-search]').addEventListener('input', (e) => {
-    clearTimeout(t);
-    t = setTimeout(() => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
       search = e.target.value.trim();
       draw().catch(errorToast);
     }, 250);
