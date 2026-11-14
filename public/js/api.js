@@ -10,6 +10,24 @@ export class ApiRequestError extends Error {
   }
 }
 
+// Загрузка файла (фото товара): тело запроса — сам файл, а не JSON.
+export async function apiUpload(blob) {
+  const headers = { Accept: 'application/json', 'Accept-Language': lang(), 'Content-Type': blob.type };
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
+  let res;
+  try {
+    res = await fetch('/api/uploads', { method: 'POST', headers, body: blob });
+  } catch {
+    throw new ApiRequestError(0, t('apiErr.network'));
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    if (res.status === 401 && auth.token) auth.clear();
+    throw new ApiRequestError(res.status, data?.error?.message || `Ошибка ${res.status}`, data?.error?.details);
+  }
+  return data;
+}
+
 export async function api(path, { method = 'GET', body, query } = {}) {
   let url = `/api${path}`;
   if (query) {

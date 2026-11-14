@@ -1543,6 +1543,40 @@ td.actions .icon-btn { width: 36px; height: 36px; }
 .stock-list .stock-dot { box-shadow: none; }
 .stock-list .icon-btn { width: 36px; height: 36px; }
 
+/* Фото товара в форме админки */
+.photo-picker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.photo-preview {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-tint);
+  color: var(--forest);
+}
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.photo-preview .icon { width: 40px; height: 40px; stroke-width: 1.4; }
+.photo-actions { display: grid; justify-items: start; gap: 8px; min-width: 0; }
+.photo-actions .hint { font-size: 13px; }
+.file-btn { position: relative; overflow: hidden; }
+.file-btn input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.file-btn:focus-within { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+
 .product-cell { display: flex; align-items: center; gap: 12px; }
 .admin-thumb-icon { display: grid; place-items: center; color: var(--forest); flex-shrink: 0; }
 .admin-thumb {

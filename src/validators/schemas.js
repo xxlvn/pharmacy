@@ -60,6 +60,16 @@ export const categoryUpdateBody = categoryCreateBody
 
 // ---------- Products ----------
 
+function isImageUrl(value) {
+  if (/^\/api\/uploads\/\d+$/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 const productFields = {
   name: trimmed(2, 150, 'Название'),
   description: optionalText(2000, 'Описание'),
@@ -77,9 +87,12 @@ const productFields = {
     .min(0, 'Остаток не может быть отрицательным')
     .max(1_000_000),
   requiresPrescription: z.boolean({ error: 'requiresPrescription должен быть true или false' }),
+  // Любая ссылка https:// на картинку или фото, загруженное через POST /api/uploads
   imageUrl: z
-    .url({ protocol: /^https$/, error: 'imageUrl: нужна ссылка https://' })
-    .max(500)
+    .string({ error: 'imageUrl: ожидается строка' })
+    .trim()
+    .max(500, 'imageUrl: не длиннее 500 символов')
+    .refine(isImageUrl, 'imageUrl: нужна ссылка https:// или /api/uploads/<id>')
     .nullable()
     .optional(),
   imageCredit: optionalText(200, 'Автор фото'),

@@ -90,6 +90,18 @@ model Order {
   @@map("orders")
 }
 
+// Фото, загруженные администратором с компьютера.
+// Хранятся в базе, потому что диск бесплатного хостинга очищается при каждом деплое.
+model Upload {
+  id        Int      @id @default(autoincrement())
+  mimeType  String   @map("mime_type") // image/jpeg, image/png, image/webp
+  size      Int      // байт
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("uploads")
+}
+
 model OrderItem {
   id        Int @id @default(autoincrement())
   orderId   Int @map("order_id")

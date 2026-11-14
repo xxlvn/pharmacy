@@ -51,6 +51,7 @@ after(async () => {
   if (productId) await prisma.product.deleteMany({ where: { id: productId } });
   if (categoryId) await prisma.category.deleteMany({ where: { id: categoryId } });
   await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
+  if (uploadId) await prisma.upload.deleteMany({ where: { id: uploadId } });
   await prisma.$disconnect();
   server.close();
 });
@@ -252,6 +253,54 @@ test('GET /api/stats/dashboard — гость 401, user 403, admin 200 со св
   assert.equal(r.body.data.daily.length, 7);
   assert.ok(typeof r.body.data.current.revenue === 'number');
   assert.ok('PENDING' in r.body.data.statuses);
+});
+
+// Минимальный настоящий PNG 1×1 для проверки загрузки
+const PNG_1x1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+let uploadId;
+
+async function upload(body, type, token) {
+  const headers = { 'Content-Type': type };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${base}/api/uploads`, { method: 'POST', headers, body });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+test('POST /api/uploads — гость 401, user 403, admin 201', async () => {
+  assert.equal((await upload(PNG_1x1, 'image/png')).status, 401);
+  assert.equal((await upload(PNG_1x1, 'image/png', userToken)).status, 403);
+  const r = await upload(PNG_1x1, 'image/png', adminToken);
+  assert.equal(r.status, 201);
+  assert.match(r.body.data.url, /^\/api\/uploads\/\d+$/);
+  assert.equal(r.body.data.mimeType, 'image/png');
+  uploadId = r.body.data.id;
+});
+
+test('POST /api/uploads — не картинка (415), подмена типа (400)', async () => {
+  assert.equal((await upload(Buffer.from('<script>alert(1)</script>'), 'image/png', adminToken)).status, 415);
+  assert.equal((await upload(Buffer.from('hello'), 'text/plain', adminToken)).status, 415);
+  assert.equal((await upload(PNG_1x1, 'image/jpeg', adminToken)).status, 400);
+});
+
+test('GET /api/uploads/:id — отдаёт файл с правильным типом; 404 для несуществующего', async () => {
+  const res = await fetch(`${base}/api/uploads/${uploadId}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await res.arrayBuffer()), PNG_1x1);
+  assert.equal((await fetch(`${base}/api/uploads/999999`)).status, 404);
+});
+
+test('PATCH /api/products/:id — imageUrl может быть /api/uploads/<id>', async () => {
+  const p = await api('POST', '/api/products', {
+    token: adminToken,
+    body: { name: 'Фото-товар', manufacturer: 'ТестФарм', form: 'Таблетки', price: 100, categoryId, imageUrl: `/api/uploads/${uploadId}` },
+  });
+  assert.equal(p.status, 201);
+  assert.equal(p.body.data.imageUrl, `/api/uploads/${uploadId}`);
+  await prisma.product.delete({ where: { id: p.body.data.id } });
 });
 
 test('POST /api/products — imageUrl только https (400 для http)', async () => {

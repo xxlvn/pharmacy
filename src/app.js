@@ -23,8 +23,8 @@ export function createApp() {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", 'https://fonts.googleapis.com'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-          // фото препаратов с Wikimedia Commons (свободные лицензии)
-          imgSrc: ["'self'", 'data:', 'https://upload.wikimedia.org', 'https://thumb.wikimedia.org'],
+          // фото товаров: загруженные (/api/uploads), превью выбранного файла (blob:) и любые https-ссылки
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
           scriptSrc: ["'self'"],
         },
       },

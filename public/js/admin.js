@@ -1,12 +1,12 @@
 // Панель администратора: заказы, товары (CRUD), категории (CRUD), пользователи.
-import { api } from './api.js';
+import { api, apiUpload } from './api.js';
 import { auth } from './store.js';
 import {
   esc, tenge, formatDate, icon, formIcon as formIconName, statusBadge, statusLabel, STATUSES,
   toast, errorToast, confirmDialog, openDrawer,
 } from './ui.js';
 import { invalidateCategories } from './app.js';
-import { t, unit, fmtDate, fmtCompact, formName, dosageText, categoryName as categoryLabel } from './i18n.js';
+import { t, unit, fmtDate, fmtCompact, formName, dosageText, localizeError, categoryName as categoryLabel } from './i18n.js';
 
 const TABS = ['overview', 'orders', 'products', 'categories', 'users'];
 
@@ -449,7 +449,7 @@ function productForm(product, onSaved) {
   const forms = ['Таблетки', 'Капсулы', 'Сироп', 'Раствор', 'Капли', 'Спрей', 'Порошок', 'Пастилки', 'Мазь', 'Гель', 'Крем', 'Шампунь', 'Пластырь', 'Прибор', 'Тест-полоски', 'Раствор для инъекций'];
   if (!forms.includes(p.form)) forms.push(p.form);
 
-  openDrawer({
+  const drawer = openDrawer({
     title: product ? t('ap.formTitle', { id: product.id }) : t('ap.new'),
     submitText: product ? t('common.save') : t('common.create'),
     body: `
@@ -471,7 +471,22 @@ function productForm(product, onSaved) {
         <div class="field"><label for="f-stock">${t('ap.stockPcs')}</label><input class="input" id="f-stock" name="stock" type="number" min="0" step="1" inputmode="numeric" value="${esc(p.stock)}" required></div>
       </div>
       <label class="check"><input type="checkbox" name="requiresPrescription" ${p.requiresPrescription ? 'checked' : ''}> ${t('ap.rxCheck')}</label>
-      <div class="field"><label for="f-img">${t('ap.photo')}</label><input class="input" id="f-img" name="imageUrl" type="url" value="${esc(p.imageUrl ?? '')}" placeholder="https://upload.wikimedia.org/..."><span class="hint">${t('ap.photoHint')}</span></div>
+      <div class="field">
+        <span class="label">${t('ap.photo')}</span>
+        <div class="photo-picker">
+          <div class="photo-preview" data-photo-preview>${photoPreview(p.imageUrl, p.form)}</div>
+          <div class="photo-actions">
+            <label class="btn btn-ghost btn-sm file-btn">
+              ${icon('upload', 'icon icon-sm')}${t('ap.upload')}
+              <input type="file" accept="${UPLOAD_TYPES.join(',')}" data-photo-file>
+            </label>
+            <button type="button" class="btn btn-danger-ghost btn-sm" data-photo-clear ${p.imageUrl ? '' : 'hidden'}>${t('ap.removePhoto')}</button>
+            <span class="hint" data-photo-status aria-live="polite">${t('ap.uploadHint')}</span>
+          </div>
+        </div>
+        <label for="f-img" class="hint">${t('ap.orLink')}</label>
+        <input class="input" id="f-img" name="imageUrl" type="text" inputmode="url" autocomplete="off" value="${esc(p.imageUrl ?? '')}" placeholder="https://...">
+      </div>
       <div class="field"><label for="f-credit">${t('ap.credit')}</label><input class="input" id="f-credit" name="imageCredit" value="${esc(p.imageCredit ?? '')}" placeholder="${esc(t('ap.creditPh'))}"></div>
       <div class="field"><label for="f-desc">${t('ap.desc')}</label><textarea class="textarea" id="f-desc" name="description">${esc(p.description ?? '')}</textarea></div>`,
     onSubmit: async (form) => {
@@ -501,6 +516,108 @@ function productForm(product, onSaved) {
       await onSaved();
     },
   });
+  setupPhotoPicker(drawer.el, p.form);
+}
+
+// ---------- Фото товара: загрузка с компьютера или ссылка ----------
+
+const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_SOURCE_BYTES = 20 * 1024 * 1024; // исходный файл до уменьшения
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // после уменьшения (лимит сервера)
+const MAX_SIDE = 1200; // px
+
+function photoPreview(url, form) {
+  return url
+    ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">`
+    : icon(formIconName(form), 'icon');
+}
+
+function setupPhotoPicker(form, dosageForm) {
+  const urlInput = form.querySelector('#f-img');
+  const fileInput = form.querySelector('[data-photo-file]');
+  const preview = form.querySelector('[data-photo-preview]');
+  const clearBtn = form.querySelector('[data-photo-clear]');
+  const status = form.querySelector('[data-photo-status]');
+  const submit = form.querySelector('[data-submit]');
+
+  const showPreview = (url) => {
+    preview.innerHTML = photoPreview(url, dosageForm);
+    clearBtn.hidden = !url;
+    const img = preview.querySelector('img');
+    img?.addEventListener('error', () => {
+      preview.innerHTML = icon(formIconName(dosageForm), 'icon');
+      status.textContent = t('ap.previewError');
+    });
+  };
+
+  let typing;
+  urlInput.addEventListener('input', () => {
+    clearTimeout(typing);
+    typing = setTimeout(() => {
+      status.textContent = t('ap.uploadHint');
+      showPreview(urlInput.value.trim());
+    }, 400);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    urlInput.value = '';
+    form.querySelector('#f-credit').value = '';
+    status.textContent = t('ap.uploadHint');
+    showPreview('');
+  });
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (!UPLOAD_TYPES.includes(file.type)) {
+      status.textContent = t('ap.fileType');
+      return;
+    }
+    if (file.size > MAX_SOURCE_BYTES) {
+      status.textContent = t('ap.fileTooBig');
+      return;
+    }
+
+    status.textContent = t('ap.uploading');
+    submit.disabled = true;
+    try {
+      const blob = await shrinkImage(file);
+      if (blob.size > MAX_UPLOAD_BYTES) throw new Error(t('ap.fileTooBig'));
+      const { data } = await apiUpload(blob);
+      urlInput.value = data.url;
+      form.querySelector('#f-credit').value = ''; // подпись прежнего фото к новому не относится
+      showPreview(data.url);
+      status.textContent = t('ap.uploaded', { size: Math.round(data.size / 1024) });
+    } catch (err) {
+      status.textContent = localizeError(err).message || t('ap.uploadFailed');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+// Уменьшаем фото в браузере до 1200px по большей стороне и сжимаем в WebP (или JPEG),
+// чтобы в базу попадали файлы примерно по 100–200 КБ, а не снимки с телефона по 5 МБ.
+async function shrinkImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; // прозрачный PNG → белый фон
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+
+  const toBlob = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+  for (const quality of [0.85, 0.7, 0.55]) {
+    let blob = await toBlob('image/webp', quality);
+    if (!blob || blob.type !== 'image/webp') blob = await toBlob('image/jpeg', quality); // браузер без WebP
+    if (blob && blob.size <= MAX_UPLOAD_BYTES) return blob;
+  }
+  throw new Error(t('ap.fileTooBig'));
 }
 
 // ---------- Категории ----------
