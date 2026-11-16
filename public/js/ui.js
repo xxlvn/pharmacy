@@ -121,7 +121,8 @@ export function renderFormError(container, err) {
     return;
   }
   err = localizeError(err);
-  const details = Array.isArray(err.details) ? err.details : [];
+  // пункты, повторяющие заголовок ошибки, не показываем второй раз
+  const details = Array.isArray(err.details) ? err.details.filter((d) => d.message !== err.message) : [];
   container.hidden = false;
   container.innerHTML = `<strong>${esc(err.message)}</strong>${
     details.length ? `<ul>${details.map((d) => `<li>${esc(d.message)}</li>`).join('')}</ul>` : ''

@@ -30,6 +30,8 @@ model User {
   passwordHash String   @map("password_hash")
   role         Role     @default(USER)
   avatarUrl    String?  @map("avatar_url") // /api/uploads/<id>, загружается самим пользователем
+  // Момент последней смены пароля: токены, выданные раньше, перестают действовать
+  passwordChangedAt DateTime? @map("password_changed_at")
   createdAt    DateTime @default(now()) @map("created_at")
 
   orders Order[]

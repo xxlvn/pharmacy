@@ -46,6 +46,51 @@ export async function register({ email, name, password }) {
   return { user, accessToken: signToken(user) };
 }
 
+// Проверка текущего пароля перед чувствительными изменениями.
+// Ошибка — 400, а не 401: 401 клиент воспринимает как «сессия истекла» и выходит из аккаунта.
+async function assertPassword(userId, password) {
+  const { passwordHash } = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+  if (!password || !(await argon2.verify(passwordHash, password))) {
+    throw ApiError.badRequest('Неверный текущий пароль', [
+      { location: 'body', field: 'currentPassword', message: 'Неверный текущий пароль' },
+    ]);
+  }
+}
+
+// Смена имени и/или почты текущего пользователя.
+export async function updateProfile(userId, { name, email, currentPassword }) {
+  const current = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+  const data = {};
+  if (name !== undefined) data.name = name;
+  if (email !== undefined && email !== current.email) {
+    // Почта — это логин, поэтому её смена требует подтверждения паролем
+    await assertPassword(userId, currentPassword);
+    const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (taken) throw ApiError.conflict('Пользователь с таким email уже зарегистрирован');
+    data.email = email;
+  }
+  return prisma.user.update({ where: { id: userId }, data, select: publicUserSelect });
+}
+
+// Смена пароля. Все токены, выданные раньше, перестают действовать (см. requireAuth),
+// а текущей сессии выдаётся новый токен, чтобы она не прервалась.
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  await assertPassword(userId, currentPassword);
+  if (currentPassword === newPassword) {
+    throw ApiError.badRequest('Новый пароль совпадает с текущим', [
+      { location: 'body', field: 'newPassword', message: 'Новый пароль совпадает с текущим' },
+    ]);
+  }
+  // Секунды, без миллисекунд: в JWT время выдачи (iat) тоже в секундах
+  const changedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await hashPassword(newPassword), passwordChangedAt: changedAt },
+    select: publicUserSelect,
+  });
+  return { user, accessToken: signToken(user) };
+}
+
 // Аватарка: файл сохраняется так же, как фото товаров (таблица uploads),
 // а прежний файл пользователя удаляется, чтобы не копить мусор в базе.
 export async function setAvatar(userId, buffer, declaredType) {

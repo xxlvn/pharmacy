@@ -14,6 +14,14 @@ export async function me(req, res) {
   res.json({ user: req.user });
 }
 
+export async function updateProfile(req, res) {
+  res.json({ user: await authService.updateProfile(req.user.id, req.validated.body) });
+}
+
+export async function changePassword(req, res) {
+  res.json(await authService.changePassword(req.user.id, req.validated.body));
+}
+
 export async function setAvatar(req, res) {
   // Владелец — пользователь из токена: поменять аватар можно только себе.
   const declared = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();

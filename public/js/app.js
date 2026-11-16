@@ -1039,9 +1039,56 @@ function renderAccount() {
               <p class="hint" data-avatar-status aria-live="polite">${t('acc.photoHint')}</p>
             </div>
           </div>
+          <form class="panel form" data-profile-form novalidate>
+            <h2 class="panel-title">${t('acc.profileTitle')}</h2>
+            <div class="form-error" data-form-error hidden></div>
+            <div class="form-row">
+              <div class="field">
+                <label for="acc-name">${t('auth.name')}</label>
+                <input class="input" id="acc-name" name="name" autocomplete="name" value="${esc(u.name)}" required>
+              </div>
+              <div class="field">
+                <label for="acc-email">${t('auth.email')}</label>
+                <input class="input" id="acc-email" name="email" type="email" autocomplete="email" value="${esc(u.email)}" required>
+              </div>
+            </div>
+            <div class="field" data-email-confirm hidden>
+              <label for="acc-email-pass">${t('acc.currentPassword')}</label>
+              <input class="input" id="acc-email-pass" name="currentPassword" type="password" autocomplete="current-password">
+              <span class="hint">${t('acc.emailConfirm')}</span>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">${t('acc.saveProfile')}</button>
+              <span class="hint" data-form-status aria-live="polite"></span>
+            </div>
+          </form>
+
+          <form class="panel form" data-password-form novalidate>
+            <h2 class="panel-title">${t('acc.passwordTitle')}</h2>
+            <div class="form-error" data-form-error hidden></div>
+            <input type="text" name="username" autocomplete="username" value="${esc(u.email)}" hidden>
+            <div class="field">
+              <label for="acc-cur">${t('acc.currentPassword')}</label>
+              <input class="input" id="acc-cur" name="currentPassword" type="password" autocomplete="current-password" required>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="acc-new">${t('acc.newPassword')}</label>
+                <input class="input" id="acc-new" name="newPassword" type="password" autocomplete="new-password" required aria-describedby="acc-new-hint">
+                <span class="hint" id="acc-new-hint">${t('auth.pwHint')}</span>
+              </div>
+              <div class="field">
+                <label for="acc-rep">${t('acc.repeatPassword')}</label>
+                <input class="input" id="acc-rep" name="repeatPassword" type="password" autocomplete="new-password" required>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">${t('acc.changePassword')}</button>
+              <span class="hint" data-form-status aria-live="polite"></span>
+            </div>
+          </form>
+
           <dl class="doc-req">
-            <div><dt>${t('auth.name')}</dt><dd>${esc(u.name)}</dd></div>
-            <div><dt>${t('auth.email')}</dt><dd>${esc(u.email)}</dd></div>
             <div><dt>${t('acc.role')}</dt><dd>${u.role === 'ADMIN' ? t('au.admin') : t('au.user')}</dd></div>
             ${u.createdAt ? `<div><dt>${t('acc.since')}</dt><dd>${fmtDate(u.createdAt, 'date')}</dd></div>` : ''}
           </dl>
@@ -1075,6 +1122,68 @@ function renderAccount() {
     } catch (err) {
       status.textContent = localizeError(err).message || t('ap.uploadFailed');
       busy(false);
+    }
+  });
+
+  // --- Личные данные: имя и почта ---
+  const profile = main.querySelector('[data-profile-form]');
+  const emailConfirm = profile.querySelector('[data-email-confirm]');
+  profile.email.addEventListener('input', () => {
+    // пароль нужен только если почта действительно меняется
+    emailConfirm.hidden = profile.email.value.trim().toLowerCase() === u.email;
+  });
+  profile.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = profile.querySelector('[type="submit"]');
+    const errBox = profile.querySelector('[data-form-error]');
+    const status = profile.querySelector('[data-form-status]');
+    renderFormError(errBox, null);
+    status.textContent = '';
+    const body = {};
+    const name = profile.name.value.trim();
+    const email = profile.email.value.trim().toLowerCase();
+    if (name !== u.name) body.name = name;
+    if (email !== u.email) {
+      body.email = email;
+      body.currentPassword = profile.currentPassword.value;
+    }
+    if (!Object.keys(body).length) return (status.textContent = t('acc.nothingChanged'));
+    setLoading(btn, true);
+    try {
+      const { user } = await api('/auth/me', { method: 'PATCH', body });
+      auth.set(auth.token, user);
+      renderAccount();
+      toast(t('acc.profileSaved'));
+    } catch (err) {
+      renderFormError(errBox, err);
+    } finally {
+      setLoading(btn, false);
+    }
+  });
+
+  // --- Пароль ---
+  const pass = main.querySelector('[data-password-form]');
+  pass.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = pass.querySelector('[type="submit"]');
+    const errBox = pass.querySelector('[data-form-error]');
+    renderFormError(errBox, null);
+    if (pass.newPassword.value !== pass.repeatPassword.value) {
+      return renderFormError(errBox, { message: t('acc.passwordMismatch') });
+    }
+    setLoading(btn, true);
+    try {
+      const { user, accessToken } = await api('/auth/me/password', {
+        method: 'PATCH',
+        body: { currentPassword: pass.currentPassword.value, newPassword: pass.newPassword.value },
+      });
+      auth.set(accessToken, user); // новый токен: старые на других устройствах больше не действуют
+      pass.reset();
+      toast(t('acc.passwordSaved'));
+    } catch (err) {
+      renderFormError(errBox, err);
+    } finally {
+      setLoading(btn, false);
     }
   });
 

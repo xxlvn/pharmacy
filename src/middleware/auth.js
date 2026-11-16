@@ -26,13 +26,20 @@ export async function requireAuth(req, res, next) {
 
   // Роль и само существование пользователя берём из БД, а не из токена:
   // если админ понизил роль или удалил пользователя, старый токен перестанет давать права.
-  const user = await prisma.user.findUnique({
+  const found = await prisma.user.findUnique({
     where: { id: Number(payload.sub) },
-    select: publicUserSelect,
+    select: { ...publicUserSelect, passwordChangedAt: true },
   });
 
-  if (!user) {
+  if (!found) {
     throw ApiError.unauthorized('Пользователь не найден');
+  }
+
+  // После смены пароля токены, выданные раньше, перестают действовать:
+  // украденный или забытый на чужом устройстве токен больше не даст доступа.
+  const { passwordChangedAt, ...user } = found;
+  if (passwordChangedAt && payload.iat < Math.floor(passwordChangedAt.getTime() / 1000)) {
+    throw ApiError.unauthorized('Пароль был изменён, войдите снова');
   }
 
   req.user = user;

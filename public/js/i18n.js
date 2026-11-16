@@ -64,6 +64,18 @@ const D = {
     'acc.photoHint': 'JPEG, PNG или WebP. Фото обрежется до квадрата',
     'acc.photoSaved': 'Аватар обновлён',
     'acc.photoRemoved': 'Аватар удалён',
+    'acc.profileTitle': 'Личные данные',
+    'acc.saveProfile': 'Сохранить',
+    'acc.emailConfirm': 'Чтобы сменить почту, введите текущий пароль',
+    'acc.profileSaved': 'Данные сохранены',
+    'acc.nothingChanged': 'Изменений нет',
+    'acc.passwordTitle': 'Пароль',
+    'acc.currentPassword': 'Текущий пароль',
+    'acc.newPassword': 'Новый пароль',
+    'acc.repeatPassword': 'Повторите новый пароль',
+    'acc.changePassword': 'Сменить пароль',
+    'acc.passwordMismatch': 'Новые пароли не совпадают',
+    'acc.passwordSaved': 'Пароль изменён. На других устройствах нужно войти заново',
     'toast.loggedOut': 'Вы вышли из аккаунта',
     'toast.loggedIn': 'Вы вошли как {name}',
     'toast.registered': 'Аккаунт создан',
@@ -347,6 +359,18 @@ const D = {
     'acc.photoHint': 'JPEG, PNG немесе WebP. Фото шаршы пішінге қиылады',
     'acc.photoSaved': 'Аватар жаңартылды',
     'acc.photoRemoved': 'Аватар жойылды',
+    'acc.profileTitle': 'Жеке деректер',
+    'acc.saveProfile': 'Сақтау',
+    'acc.emailConfirm': 'Поштаны ауыстыру үшін ағымдағы құпиясөзді енгізіңіз',
+    'acc.profileSaved': 'Деректер сақталды',
+    'acc.nothingChanged': 'Өзгеріс жоқ',
+    'acc.passwordTitle': 'Құпиясөз',
+    'acc.currentPassword': 'Ағымдағы құпиясөз',
+    'acc.newPassword': 'Жаңа құпиясөз',
+    'acc.repeatPassword': 'Жаңа құпиясөзді қайталаңыз',
+    'acc.changePassword': 'Құпиясөзді ауыстыру',
+    'acc.passwordMismatch': 'Жаңа құпиясөздер сәйкес келмейді',
+    'acc.passwordSaved': 'Құпиясөз өзгертілді. Басқа құрылғыларда қайта кіру керек',
     'toast.loggedOut': 'Аккаунттан шықтыңыз',
     'toast.loggedIn': '{name} ретінде кірдіңіз',
     'toast.registered': 'Аккаунт құрылды',
@@ -630,6 +654,18 @@ const D = {
     'acc.photoHint': 'JPEG, PNG or WebP. The photo is cropped to a square',
     'acc.photoSaved': 'Avatar updated',
     'acc.photoRemoved': 'Avatar removed',
+    'acc.profileTitle': 'Personal details',
+    'acc.saveProfile': 'Save',
+    'acc.emailConfirm': 'Enter your current password to change your email',
+    'acc.profileSaved': 'Details saved',
+    'acc.nothingChanged': 'No changes',
+    'acc.passwordTitle': 'Password',
+    'acc.currentPassword': 'Current password',
+    'acc.newPassword': 'New password',
+    'acc.repeatPassword': 'Repeat new password',
+    'acc.changePassword': 'Change password',
+    'acc.passwordMismatch': 'The new passwords do not match',
+    'acc.passwordSaved': 'Password changed. Other devices need to sign in again',
     'toast.loggedOut': 'You signed out',
     'toast.loggedIn': 'Signed in as {name}',
     'toast.registered': 'Account created',
@@ -1006,8 +1042,8 @@ export function fmtDate(value, style = 'full') {
 // подбирается по коду ответа, а поля из details подписываются по-человечески.
 
 const FIELD = {
-  kk: { email: 'Email', name: 'Аты', password: 'Құпиясөз', address: 'Мекенжай', phone: 'Телефон', comment: 'Түсініктеме', price: 'Бағасы', stock: 'Қалдық', manufacturer: 'Өндіруші', form: 'Шығарылу түрі', dosage: 'Мөлшері', categoryId: 'Санат', imageUrl: 'Фото', slug: 'Slug', description: 'Сипаттама' },
-  en: { email: 'Email', name: 'Name', password: 'Password', address: 'Address', phone: 'Phone', comment: 'Comment', price: 'Price', stock: 'Stock', manufacturer: 'Manufacturer', form: 'Dosage form', dosage: 'Strength', categoryId: 'Category', imageUrl: 'Photo', slug: 'Slug', description: 'Description' },
+  kk: { email: 'Email', name: 'Аты', password: 'Құпиясөз', address: 'Мекенжай', phone: 'Телефон', comment: 'Түсініктеме', price: 'Бағасы', stock: 'Қалдық', manufacturer: 'Өндіруші', form: 'Шығарылу түрі', dosage: 'Мөлшері', categoryId: 'Санат', imageUrl: 'Фото', slug: 'Slug', description: 'Сипаттама', currentPassword: 'Ағымдағы құпиясөз', newPassword: 'Жаңа құпиясөз' },
+  en: { email: 'Email', name: 'Name', password: 'Password', address: 'Address', phone: 'Phone', comment: 'Comment', price: 'Price', stock: 'Stock', manufacturer: 'Manufacturer', form: 'Dosage form', dosage: 'Strength', categoryId: 'Category', imageUrl: 'Photo', slug: 'Slug', description: 'Description', currentPassword: 'Current password', newPassword: 'New password' },
 };
 
 const STATUS_MSG = {
@@ -1042,11 +1078,14 @@ const KNOWN = [
   [/уже зарегистрирован/, { kk: 'Бұл email тіркелген', en: 'This email is already registered' }],
   [/Недостаточно товара/, { kk: 'Қоймада тауар жеткіліксіз', en: 'Not enough stock for this order' }],
   [/Срок действия токена/, { kk: 'Сессия аяқталды, қайта кіріңіз', en: 'Your session expired, sign in again' }],
+  [/Неверный текущий пароль/, { kk: 'Ағымдағы құпиясөз қате', en: 'Wrong current password' }],
+  [/совпадает с текущим/, { kk: 'Жаңа құпиясөз ағымдағысымен бірдей', en: 'The new password is the same as the current one' }],
+  [/Пароль был изменён/, { kk: 'Құпиясөз өзгертілді, қайта кіріңіз', en: 'Your password was changed, sign in again' }],
   [/нельзя|Нельзя/, null],
 ];
 
 export function localizeError(err) {
-  if (current === 'ru' || !err) return err;
+  if (current === 'ru' || !err || err.status === undefined) return err; // клиентские ошибки уже на нужном языке
   const known = KNOWN.find(([re]) => re.test(err.message || ''));
   const message = known?.[1]?.[current] ?? STATUS_MSG[current][err.status] ?? STATUS_MSG[current][500];
   const details = Array.isArray(err.details)

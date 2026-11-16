@@ -21,18 +21,39 @@ export const idParams = z.object({
 
 // ---------- Auth ----------
 
+const emailField = z.email('Некорректный email').trim().toLowerCase().max(254);
+const newPasswordField = z
+  .string({ error: 'Пароль: ожидается строка' })
+  .min(8, 'Пароль: минимум 8 символов')
+  .max(128, 'Пароль: максимум 128 символов')
+  .regex(/[A-Za-zА-Яа-я]/, 'Пароль должен содержать букву')
+  .regex(/\d/, 'Пароль должен содержать цифру');
+
 export const registerBody = z
   .object({
-    email: z.email('Некорректный email').trim().toLowerCase().max(254),
+    email: emailField,
     name: trimmed(2, 100, 'Имя'),
-    password: z
-      .string({ error: 'Пароль: ожидается строка' })
-      .min(8, 'Пароль: минимум 8 символов')
-      .max(128, 'Пароль: максимум 128 символов')
-      .regex(/[A-Za-zА-Яа-я]/, 'Пароль должен содержать букву')
-      .regex(/\d/, 'Пароль должен содержать цифру'),
+    password: newPasswordField,
   })
   .strict('Недопустимое поле. Роль при регистрации назначать нельзя');
+
+// Смена имени и почты. Для смены почты нужен текущий пароль (проверяется в сервисе).
+// Роль и прочие поля через этот маршрут не меняются.
+export const profileBody = z
+  .object({
+    name: trimmed(2, 100, 'Имя').optional(),
+    email: emailField.optional(),
+    currentPassword: z.string().max(128).optional(),
+  })
+  .strict('Недопустимое поле. Менять можно только имя и почту')
+  .refine((d) => d.name !== undefined || d.email !== undefined, 'Передайте имя или почту');
+
+export const passwordBody = z
+  .object({
+    currentPassword: z.string({ error: 'Укажите текущий пароль' }).min(1, 'Укажите текущий пароль').max(128),
+    newPassword: newPasswordField,
+  })
+  .strict();
 
 export const loginBody = z.object({
   email: z.email('Некорректный email').trim().toLowerCase(),
