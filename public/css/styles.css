@@ -1483,7 +1483,8 @@ td.actions .icon-btn { width: 36px; height: 36px; }
 }
 
 .doc-body { max-width: 75ch; }
-.doc-section { scroll-margin-top: calc(var(--header-h) + 24px); padding-bottom: 32px; }
+/* отступ под шапку при переходе к разделу уже задаёт scroll-padding-top у html */
+.doc-section { padding-bottom: 32px; }
 .doc-section + .doc-section { padding-top: 32px; border-top: 1px solid var(--line); }
 .doc-section h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 16px; }
 .doc-section p { margin-top: 12px; line-height: 1.65; }

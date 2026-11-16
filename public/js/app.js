@@ -11,6 +11,10 @@ import {
 } from './i18n.js';
 import { PAGES, INFO_LINKS, SUPPORT_EMAIL } from './info.js';
 import { OFFER } from './offer.js';
+import { PRIVACY } from './privacy.js';
+
+// Юридические документы с оглавлением (см. renderDoc)
+const DOCS = { offer: OFFER, privacy: PRIVACY };
 import { renderAdmin } from './admin.js';
 
 const main = document.getElementById('main');
@@ -942,7 +946,7 @@ async function renderOrders({ isCurrent }) {
 // ---------- Информационные страницы ----------
 
 function renderInfo({ params }) {
-  if (params[0] === 'offer') return renderOffer();
+  if (DOCS[params[0]]) return renderDoc(DOCS[params[0]][lang()], params[0]);
   const page = PAGES[params[0]];
   if (!page) {
     main.innerHTML = `<section class="section"><div class="container view">${emptyState('search', t('err.notFoundTitle'), t('err.notFoundText'), `<a class="btn btn-primary" href="#/">${t('common.toCatalog')}</a>`)}</div></section>`;
@@ -961,14 +965,14 @@ function renderInfo({ params }) {
     </section>`;
 }
 
-// ---------- Публичная оферта ----------
+// ---------- Документы: публичная оферта, политика конфиденциальности ----------
 // Документ с оглавлением: слева закреплённый список разделов, справа текст.
 // Ссылки оглавления прокручивают к разделу сами (#… в адресе занят роутером),
 // а текущий раздел подсвечивается при прокрутке.
 
-function offerBlock(b) {
+function docBlock(b) {
   if (typeof b === 'string') return `<p>${esc(b)}</p>`;
-  if (b.html) return `<p>${b.html}</p>`; // статичный текст из offer.js со ссылкой на политику
+  if (b.html) return `<p>${b.html}</p>`; // статичный текст из offer.js / privacy.js со ссылкой на другой документ
   if (b.list) return `<ul class="doc-list">${b.list.map((li) => `<li>${esc(li)}</li>`).join('')}</ul>`;
   if (b.terms) {
     return `<ul class="doc-terms">${b.terms.map(([term, def]) => `<li><strong>${esc(term)}</strong> — ${esc(def)}</li>`).join('')}</ul>`;
@@ -976,7 +980,7 @@ function offerBlock(b) {
   return '';
 }
 
-function offerRequisites(rows) {
+function docRequisites(rows) {
   return `<dl class="doc-req">${rows.map(([label, value, placeholder]) => `
     <div>
       <dt>${esc(label)}</dt>
@@ -984,10 +988,9 @@ function offerRequisites(rows) {
     </div>`).join('')}</dl>`;
 }
 
-let offerObserver = null;
+let docScrollHandler = null;
 
-function renderOffer() {
-  const doc = OFFER[lang()];
+function renderDoc(doc, slug) {
   document.title = `${doc.title} — ${t('meta.title')}`;
   main.innerHTML = `
     <section class="section">
@@ -1000,14 +1003,14 @@ function renderOffer() {
           <nav class="doc-toc" aria-labelledby="doc-toc-title">
             <p class="doc-toc-title" id="doc-toc-title">${esc(doc.toc)}</p>
             <ol>
-              ${doc.sections.map((s, i) => `<li><a href="#/info/offer" data-anchor="offer-${s.id}">${i + 1}. ${esc(s.title)}</a></li>`).join('')}
+              ${doc.sections.map((s, i) => `<li><a href="#/info/${slug}" data-anchor="doc-${s.id}">${i + 1}. ${esc(s.title)}</a></li>`).join('')}
             </ol>
           </nav>
           <article class="doc-body">
             ${doc.sections.map((s, i) => `
-              <section class="doc-section" id="offer-${s.id}">
+              <section class="doc-section" id="doc-${s.id}">
                 <h2>${i + 1}. ${esc(s.title)}</h2>
-                ${s.requisites ? offerRequisites(s.requisites) : s.blocks.map(offerBlock).join('')}
+                ${s.requisites ? docRequisites(s.requisites) : s.blocks.map(docBlock).join('')}
               </section>`).join('')}
           </article>
         </div>
@@ -1022,14 +1025,25 @@ function renderOffer() {
     document.getElementById(a.dataset.anchor)?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
   });
 
-  // Подсветка раздела, который сейчас в верхней части экрана
-  offerObserver?.disconnect();
-  offerObserver = new IntersectionObserver((entries) => {
-    const visible = entries.filter((en) => en.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-    if (!visible) return;
-    links.forEach((l) => l.toggleAttribute('aria-current', l.dataset.anchor === visible.target.id));
-  }, { rootMargin: '-90px 0px -65% 0px' });
-  main.querySelectorAll('.doc-section').forEach((s) => offerObserver.observe(s));
+  // Подсветка текущего раздела: последний раздел, чей заголовок уже прошёл линию под шапкой.
+  // В самом низу страницы — последний раздел (короткие разделы в конце не доезжают до верха).
+  const sections = [...main.querySelectorAll('.doc-section')];
+  const highlight = (id) => links.forEach((l) => l.toggleAttribute('aria-current', l.dataset.anchor === id));
+  const update = () => {
+    const line = document.querySelector('.site-header').getBoundingClientRect().bottom + 40;
+    const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+    const passed = sections.filter((s) => s.getBoundingClientRect().top <= line);
+    highlight((atEnd ? sections.at(-1) : passed.at(-1) ?? sections[0]).id);
+  };
+  // Браузер и так шлёт scroll не чаще раза за кадр, а пересчёт для десятка разделов дешёвый
+  const onScroll = () => {
+    if (!document.contains(sections[0])) return window.removeEventListener('scroll', onScroll);
+    update();
+  };
+  window.removeEventListener('scroll', docScrollHandler ?? (() => {}));
+  docScrollHandler = onScroll;
+  window.addEventListener('scroll', onScroll, { passive: true });
+  update();
 }
 
 // ---------- Старт ----------
