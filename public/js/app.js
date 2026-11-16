@@ -53,6 +53,7 @@ async function router({ keepScroll = false } = {}) {
     if (route && a.dataset.nav === route.nav) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  updateNav();
 
   if (!route) {
     main.innerHTML = `<section class="section"><div class="container view">${emptyState('search', t('err.notFoundTitle'), t('err.notFoundText'), `<a class="btn btn-primary" href="#/">${t('common.toCatalog')}</a>`)}</div></section>`;
@@ -113,11 +114,23 @@ function renderHeader() {
   langBox.innerHTML = LANGS.map((l) => `
     <button type="button" data-lang="${l.code}" lang="${l.code}" aria-pressed="${l.code === lang()}" title="${l.label}">${l.short}</button>`).join('');
 
-  document.querySelectorAll('[data-auth]').forEach((el) => {
-    const need = el.dataset.auth;
-    el.hidden = need === 'admin' ? !auth.isAdmin : !auth.isAuthed;
-  });
+  updateNav();
   renderCartCount(false);
+}
+
+// Видимость пунктов меню: «Мои заказы» и «Управление» зависят от роли,
+// а «Каталог» скрыт на самой странице каталога (кнопка вела бы туда же, где вы уже есть).
+// Если в меню не осталось ни одного пункта, оно прячется целиком, чтобы на телефоне
+// внизу не висела пустая полоса.
+function updateNav() {
+  const onCatalog = parseHash().path === '/';
+  document.querySelectorAll('.main-nav a').forEach((el) => {
+    const need = el.dataset.auth;
+    if (need) el.hidden = need === 'admin' ? !auth.isAdmin : !auth.isAuthed;
+    if (el.dataset.nav === 'catalog') el.hidden = onCatalog;
+  });
+  const nav = document.querySelector('.main-nav');
+  nav.hidden = ![...nav.querySelectorAll('a')].some((a) => !a.hidden);
 }
 
 function renderCartCount(bump = true) {

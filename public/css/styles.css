@@ -318,6 +318,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 4px;
   margin-right: auto;
 }
+.main-nav[hidden] { display: none; }
 
 .main-nav a {
   padding: 8px 12px;
@@ -334,7 +335,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .main-nav a:not([aria-current='page']):hover { color: var(--on-dark); background: rgb(255 255 255 / 0.08); }
 }
 
-.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 /* Переключатель языка в шапке */
 .header-lang {
@@ -437,6 +438,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .header-actions { margin-left: auto; }
   .account-name { display: none; }
   body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  body:has(.main-nav[hidden]) { padding-bottom: env(safe-area-inset-bottom, 0px); }
   /* Без transform на .site-header: он сделал бы шапку контейнером для position: fixed,
      и нижнее меню (оно внутри шапки) прилипло бы к ней */
 }
