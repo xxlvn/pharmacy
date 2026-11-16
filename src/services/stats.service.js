@@ -14,7 +14,7 @@ export async function dashboard(days = 30) {
   const [orders, statusGroups, topGroups, lowStock, productsTotal, outOfStock, usersTotal] = await Promise.all([
     prisma.order.findMany({
       where: { createdAt: { gte: prevStart } },
-      select: { total: true, status: true, createdAt: true, userId: true },
+      select: { total: true, status: true, createdAt: true, email: true },
     }),
     prisma.order.groupBy({
       by: ['status'],
@@ -47,7 +47,7 @@ export async function dashboard(days = 30) {
       revenue,
       orders: paid.length,
       avgCheck: paid.length ? Math.round(revenue / paid.length) : 0,
-      customers: new Set(paid.map((o) => o.userId)).size,
+      customers: new Set(paid.map((o) => o.email)).size, // гостевые заказы считаются по почте
     };
   };
   const current = summarize(orders.filter((o) => o.createdAt >= periodStart));

@@ -34,8 +34,6 @@ model User {
   passwordChangedAt DateTime? @map("password_changed_at")
 
   // Восстановление пароля: хранится только SHA-256 хеш одноразового токена из письма
-  resetTokenHash    String?   @unique @map("reset_token_hash")
-  resetTokenExpires DateTime? @map("reset_token_expires")
 
   // Двухфакторная аутентификация (TOTP, приложение-аутентификатор).
   // Секреты хранятся зашифрованными (AES-256-GCM), резервные коды — только хешами.
@@ -89,7 +87,10 @@ model Product {
 
 model Order {
   id        Int         @id @default(autoincrement())
-  userId    Int         @map("user_id")
+  // null — заказ оформлен без регистрации (гость)
+  userId    Int?        @map("user_id")
+  // почта покупателя: на неё уходит чек об оплате
+  email     String
   status    OrderStatus @default(PENDING)
   total     Int         // сумма заказа в тенге
   address   String
@@ -101,10 +102,12 @@ model Order {
   cardBrand  String?   @map("card_brand")
   cardLast4  String?   @map("card_last4")
   paymentRef String?   @unique @map("payment_ref")
+  // SHA-256 ключа доступа к заказу: им гость оплачивает заказ и скачивает квитанцию
+  accessHash String?   @unique @map("access_hash")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
-  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items OrderItem[]
 
   @@index([userId])

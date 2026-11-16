@@ -20,13 +20,13 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 1d
-      # Письма восстановления пароля (Brevo, https://www.brevo.com): ключ API и подтверждённый адрес отправителя
+      # Письма с чеком об оплате (Brevo, https://www.brevo.com): ключ API и подтверждённый адрес отправителя
       - key: BREVO_API_KEY
         sync: false
       - key: MAIL_FROM
         sync: false
       - key: MAIL_FROM_NAME
         value: Мята
-      # Адрес сайта для ссылок в письмах
+      # Адрес сайта для ссылки на квитанцию в письме
       - key: APP_URL
         value: https://pharmacy-myata.onrender.com

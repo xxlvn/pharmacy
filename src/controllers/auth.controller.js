@@ -27,18 +27,6 @@ export async function changePassword(req, res) {
   res.json(await authService.changePassword(req.user.id, req.validated.body));
 }
 
-// Ответ всегда один и тот же — даже если такой почты нет
-export async function forgotPassword(req, res) {
-  const lang = (req.headers['accept-language'] || 'ru').slice(0, 2).toLowerCase();
-  await authService.forgotPassword(req.validated.body.email, { origin: `${req.protocol}://${req.get('host')}`, lang });
-  res.json({ message: 'Если такой аккаунт есть, мы отправили на почту ссылку для сброса пароля' });
-}
-
-export async function resetPassword(req, res) {
-  await authService.resetPassword(req.validated.body);
-  res.json({ message: 'Пароль изменён. Войдите с новым паролем' });
-}
-
 export async function setAvatar(req, res) {
   // Владелец — пользователь из токена: поменять аватар можно только себе.
   const declared = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();

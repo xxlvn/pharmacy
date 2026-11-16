@@ -6,10 +6,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { publicUserSelect, toPublicUser } from '../utils/publicUser.js';
 import * as uploadService from './upload.service.js';
 import * as twofa from './twofa.service.js';
-import { sendMail, resetPasswordEmail } from './mail.service.js';
 import { assertPassword } from '../utils/password.js';
-import { sha256 } from '../utils/secretBox.js';
-import { randomBytes } from 'node:crypto';
 
 // Параметры Argon2id (рекомендации OWASP: 19 MiB памяти, 2 итерации).
 const HASH_OPTIONS = {
@@ -85,42 +82,6 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
 
 // Секунды, без миллисекунд: в JWT время выдачи (iat) тоже в секундах
 const nowSeconds = () => new Date(Math.floor(Date.now() / 1000) * 1000);
-
-// ---------- Восстановление пароля по почте ----------
-
-const RESET_TTL_MS = 30 * 60 * 1000;
-
-// Отвечаем одинаково, есть такая почта или нет: по ответу нельзя узнать, кто зарегистрирован.
-// В базе хранится только SHA-256 токена; сам токен есть лишь в письме.
-export async function forgotPassword(email, { origin, lang }) {
-  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true } });
-  if (!user) return;
-  const token = randomBytes(32).toString('base64url');
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { resetTokenHash: sha256(token), resetTokenExpires: new Date(Date.now() + RESET_TTL_MS) },
-  });
-  const link = `${env.appUrl || origin}/#/reset-password?token=${token}`;
-  await sendMail({ to: user.email, ...resetPasswordEmail({ name: user.name, link, lang }) });
-}
-
-export async function resetPassword({ token, newPassword }) {
-  const user = await prisma.user.findFirst({
-    where: { resetTokenHash: sha256(token), resetTokenExpires: { gt: new Date() } },
-    select: { id: true },
-  });
-  if (!user) throw ApiError.badRequest('Ссылка для сброса пароля недействительна или устарела. Запросите новую');
-  // Токен одноразовый; все прежние сессии отключаются, как при обычной смене пароля
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordHash: await hashPassword(newPassword),
-      passwordChangedAt: nowSeconds(),
-      resetTokenHash: null,
-      resetTokenExpires: null,
-    },
-  });
-}
 
 // ---------- Вход в два шага при включённой 2FA ----------
 

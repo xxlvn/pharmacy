@@ -51,6 +51,13 @@ export async function requireAuth(req, res, next) {
   next();
 }
 
+// Авторизация по желанию: без заголовка Authorization запрос идёт как гостевой (req.user не задан),
+// а с заголовком проверяется так же строго, как в requireAuth.
+export async function optionalAuth(req, res, next) {
+  if (!req.headers.authorization) return next();
+  return requireAuth(req, res, next);
+}
+
 // Пропускает только пользователей с одной из перечисленных ролей.
 // Используется после requireAuth.
 export function requireRole(...roles) {

@@ -60,16 +60,7 @@ export const loginBody = z.object({
   password: z.string({ error: 'Пароль обязателен' }).min(1, 'Пароль обязателен').max(128),
 });
 
-// ---------- Восстановление пароля и 2FA ----------
-
-export const forgotBody = z.object({ email: emailField }).strict();
-
-export const resetBody = z
-  .object({
-    token: z.string({ error: 'Нет токена сброса' }).min(20, 'Нет токена сброса').max(200),
-    newPassword: newPasswordField,
-  })
-  .strict();
+// ---------- 2FA ----------
 
 // Код из приложения (6 цифр) или резервный код (ABCDE-FGHJK)
 const codeField = z
@@ -213,6 +204,8 @@ export const orderCreateBody = z
       .trim()
       .regex(/^\+?[0-9\s\-()]{10,20}$/, 'Некорректный номер телефона'),
     comment: optionalText(500, 'Комментарий'),
+    // Почта для чека. Без входа обязательна; после входа по умолчанию — почта аккаунта
+    email: emailField.optional(),
   })
   .strict('Недопустимое поле. Владелец заказа определяется по токену');
 
@@ -225,6 +218,12 @@ export const orderPayBody = z
     cardLast4: z.string({ error: 'Нужны последние 4 цифры карты' }).regex(/^\d{4}$/, 'Нужны последние 4 цифры карты'),
   })
   .strict('Недопустимое поле. Полные данные карты на сервер не передаются');
+
+// Скачивание квитанции: ключ заказа (для гостя) и язык документа
+export const receiptQuery = z.object({
+  key: z.string().max(100).optional(),
+  lang: z.enum(['ru', 'kk', 'en']).optional(),
+});
 
 export const orderStatusBody = z
   .object({

@@ -2,9 +2,17 @@
 // и переворачивается, когда вводится CVC.
 // Полный номер, срок и CVC проверяются только в браузере и на сервер не отправляются:
 // в API уходят платёжная система и последние 4 цифры (POST /api/orders/:id/pay).
-import { api } from './api.js';
-import { esc, tenge, icon } from './ui.js';
-import { t, fmtDate, localizeError } from './i18n.js';
+import { api, apiDownload } from './api.js';
+import { esc, tenge, icon, setLoading } from './ui.js';
+import { t, fmtDate, localizeError, lang } from './i18n.js';
+import { auth } from './store.js';
+
+// PDF-квитанция оплаченного заказа: владельцу — по токену входа, гостю — по ключу заказа
+export function downloadReceipt(orderId, accessKey) {
+  return apiDownload(`/orders/${orderId}/receipt?lang=${lang()}`, {
+    headers: accessKey ? { 'X-Order-Key': accessKey } : {},
+  });
+}
 
 const BRANDS = {
   visa: { label: 'VISA', test: /^4/ },
@@ -54,7 +62,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {string} opts.itemsHtml — разметка списка товаров для левой колонки
  * @param {Function} [opts.onDone] — вызывается при закрытии окна (оплачен заказ или нет)
  */
-export function openCheckout(order, { itemsHtml = '', onDone } = {}) {
+export function openCheckout(order, { itemsHtml = '', accessKey, onDone } = {}) {
   const amount = tenge(order.total);
   const dialog = document.createElement('dialog');
   dialog.className = 'checkout';
@@ -213,7 +221,12 @@ export function openCheckout(order, { itemsHtml = '', onDone } = {}) {
     try {
       // Шаги обработки показываются параллельно с запросом
       const [res] = await Promise.all([
-        api(`/orders/${order.id}/pay`, { method: 'POST', body: { cardBrand: brand, cardLast4: digitsOf(number.value).slice(-4) } }),
+        api(`/orders/${order.id}/pay`, {
+          method: 'POST',
+          body: { cardBrand: brand, cardLast4: digitsOf(number.value).slice(-4) },
+          // ключ заказа: без него гость не сможет оплатить, а в письме не будет ссылки на квитанцию
+          headers: accessKey ? { 'X-Order-Key': accessKey } : undefined,
+        }),
         sleep(2400),
       ]);
       form.reset(); // данные карты стираются сразу после оплаты
@@ -240,13 +253,30 @@ export function openCheckout(order, { itemsHtml = '', onDone } = {}) {
         <h2 id="co-title">${t('pay.successTitle')}</h2>
         <p class="muted">${amount} · ${BRANDS[paid.cardBrand]?.label ?? t('pay.card')} •••• ${esc(paid.cardLast4)}</p>
         <p class="checkout-ref">${t('pay.ref', { ref: esc(paid.paymentRef), date: fmtDate(paid.paidAt, 'full') })}</p>
-        <p class="checkout-next">${t('pay.successText')}</p>
+        <p class="checkout-mail">${icon('doc', 'icon icon-sm')}<span>${t('pay.receiptSent', { email: `<b>${esc(paid.email)}</b>` })}</span></p>
+        <p class="checkout-next">${t(auth.isAuthed ? 'pay.successText' : 'pay.successTextGuest')}</p>
         <div class="checkout-actions">
-          <a class="btn btn-primary" href="#/orders" data-close>${t('nav.orders')}</a>
-          <a class="btn btn-ghost" href="#/" data-close>${t('common.toCatalog')}</a>
+          <button type="button" class="btn btn-primary" data-receipt>${icon('download', 'icon icon-sm')}${t('pay.downloadReceipt')}</button>
+          ${auth.isAuthed
+            ? `<a class="btn btn-ghost" href="#/orders" data-close>${t('nav.orders')}</a>`
+            : `<a class="btn btn-ghost" href="#/" data-close>${t('common.toCatalog')}</a>`}
         </div>
+        <p class="checkout-status" data-receipt-status aria-live="polite"></p>
       </div>`;
-    dialog.querySelector('.checkout-actions .btn').focus();
+    const btn = dialog.querySelector('[data-receipt]');
+    btn.addEventListener('click', async () => {
+      const status = dialog.querySelector('[data-receipt-status]');
+      status.textContent = '';
+      setLoading(btn, true);
+      try {
+        await downloadReceipt(paid.id, accessKey);
+      } catch (err) {
+        status.textContent = localizeError(err).message;
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+    btn.focus();
   }
 
   const close = () => {

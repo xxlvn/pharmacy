@@ -9,8 +9,6 @@ import {
   loginBody,
   profileBody,
   passwordBody,
-  forgotBody,
-  resetBody,
   twoFactorLoginBody,
   codeBody,
   disableTwoFactorBody,
@@ -30,25 +28,11 @@ const authLimiter = rateLimit({
   handler: (req, res, next) => next(new ApiError(429, 'Слишком много попыток. Повторите через 15 минут')),
 });
 
-// Письма о сбросе пароля: строже, чтобы через форму нельзя было засыпать чужой ящик
-const mailLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 5,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  skip: () => isTest,
-  handler: (req, res, next) => next(new ApiError(429, 'Слишком много запросов. Повторите через час')),
-});
-
 router.post('/register', authLimiter, validate({ body: registerBody }), ctrl.register);
 router.post('/login', authLimiter, validate({ body: loginBody }), ctrl.login);
 // Второй шаг входа, если включена 2FA: код из приложения или резервный код
 router.post('/login/2fa', authLimiter, validate({ body: twoFactorLoginBody }), ctrl.loginTwoFactor);
 router.get('/me', requireAuth, ctrl.me);
-
-// Восстановление пароля по почте
-router.post('/password/forgot', mailLimiter, validate({ body: forgotBody }), ctrl.forgotPassword);
-router.post('/password/reset', authLimiter, validate({ body: resetBody }), ctrl.resetPassword);
 
 // Смена имени/почты и пароля: под тем же ограничением попыток, что и вход,
 // чтобы текущий пароль нельзя было подобрать через эти маршруты

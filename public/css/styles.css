@@ -1871,7 +1871,6 @@ td.actions .icon-btn { width: 36px; height: 36px; }
 }
 
 /* ---------- Восстановление пароля и 2FA ---------- */
-.label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .text-link {
   padding: 0;
   border: 0;
@@ -2177,3 +2176,20 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   .checkout, .checkout::backdrop { animation: checkout-fade 200ms ease; }
   .checkmark circle, .checkmark path { animation: none; stroke-dashoffset: 0; }
 }
+
+/* Заказ без регистрации и квитанция */
+.guest-note { font-size: 14px; color: var(--ink-muted); }
+.guest-note a { color: var(--accent-ink); font-weight: 600; }
+.checkout-mail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.checkout-mail b { color: var(--ink); }
+.checkout-actions .btn .icon { margin-right: 6px; }

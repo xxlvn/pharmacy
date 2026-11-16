@@ -16,7 +16,7 @@ import { PRIVACY } from './privacy.js';
 // Юридические документы с оглавлением (см. renderDoc)
 const DOCS = { offer: OFFER, privacy: PRIVACY };
 import { renderAdmin } from './admin.js';
-import { openCheckout } from './checkout.js';
+import { openCheckout, downloadReceipt } from './checkout.js';
 
 const main = document.getElementById('main');
 
@@ -28,8 +28,6 @@ const routes = [
   { pattern: /^\/cart$/, view: renderCart },
   { pattern: /^\/login$/, view: renderLogin },
   { pattern: /^\/register$/, view: renderRegister },
-  { pattern: /^\/forgot-password$/, view: renderForgot },
-  { pattern: /^\/reset-password$/, view: renderReset },
   { pattern: /^\/orders$/, view: renderOrders, nav: 'orders', auth: 'user' },
   { pattern: /^\/account$/, view: renderAccount, auth: 'user' },
   { pattern: /^\/admin$/, view: renderAdmin, nav: 'admin', auth: 'admin' },
@@ -774,9 +772,14 @@ function renderCart() {
             <div class="summary-row"><span>${t('cart.delivery')}</span><span>${t('cart.free')}</span></div>
             <div class="summary-row total"><span>${t('cart.total')}</span><span>${tenge(cart.total)}</span></div>
             ${hasRx ? `<div class="notice notice-warn">${icon('doc')}<span>${t('cart.rxNotice')}</span></div>` : ''}
-            ${auth.isAuthed ? `
+            ${auth.isAuthed ? '' : `<p class="guest-note">${t('cart.guestNote')} <a href="#/login" data-login-redirect>${t('cart.guestLogin')}</a></p>`}
               <form class="form" data-checkout novalidate>
                 <div class="form-error" data-form-error hidden></div>
+                <div class="field">
+                  <label for="email">${t('cart.email')}</label>
+                  <input class="input" id="email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="name@example.com" value="${esc(auth.user?.email ?? '')}" required aria-describedby="email-hint">
+                  <span class="hint" id="email-hint">${t('cart.emailHint')}</span>
+                </div>
                 <div class="field">
                   <label for="address">${t('cart.address')}</label>
                   <input class="input" id="address" name="address" autocomplete="street-address" placeholder="${esc(t('cart.addressPh'))}" required>
@@ -802,9 +805,7 @@ function renderCart() {
                   </label>
                 </fieldset>
                 <button class="btn btn-primary btn-block" type="submit" data-submit-checkout>${t('pay.toPayment', { amount: tenge(cart.total) })}</button>
-              </form>` : `
-              <div class="notice notice-info">${icon('info')}<span>${t('cart.loginNotice')}</span></div>
-              <a class="btn btn-primary btn-block" href="#/login" data-login-redirect>${t('cart.loginBtn')}</a>`}
+              </form>
           </aside>
         </div>
       </div>
@@ -846,9 +847,10 @@ function renderCart() {
     // Строки для окна оплаты собираем до очистки корзины
     const itemsHtml = checkoutItemsHtml(cart.list);
     try {
-      const { data: order } = await api('/orders', {
+      const { data: order, accessKey } = await api('/orders', {
         method: 'POST',
         body: {
+          email: form.email.value.trim(),
           items: cart.list.map((i) => ({ productId: i.id, quantity: i.qty })),
           address: form.address.value,
           phone: form.phone.value,
@@ -860,18 +862,18 @@ function renderCart() {
         // Заказ уже создан; если окно закрыть без оплаты, он останется с оплатой при получении
         openCheckout(order, {
           itemsHtml,
+          accessKey,
           onDone: (paid) => {
-            if (!paid) toast(t('pay.notPaidToast', { id: order.id }));
-            navigate('/orders');
+            if (!paid) toast(t(auth.isAuthed ? 'pay.notPaidToast' : 'pay.notPaidGuest', { id: order.id }));
+            navigate(auth.isAuthed ? '/orders' : '/');
           },
         });
         return;
       }
       toast(t('cart.placed', { id: order.id, total: tenge(order.total) }));
-      navigate('/orders');
+      navigate(auth.isAuthed ? '/orders' : '/');
     } catch (err) {
       renderFormError(errBox, err);
-      if (err.status === 401) navigate('/login');
     } finally {
       setLoading(btn, false);
     }
@@ -914,10 +916,7 @@ function renderLogin() {
             <input class="input" id="email" name="email" type="email" autocomplete="username" required>
           </div>
           <div class="field">
-            <div class="label-row">
-              <label for="password">${t('auth.password')}</label>
-              <a class="text-link" href="#/forgot-password">${t('auth.forgot')}</a>
-            </div>
+            <label for="password">${t('auth.password')}</label>
             <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
           </div>
           <button class="btn btn-primary btn-block" type="submit">${t('auth.loginBtn')}</button>
@@ -1003,100 +1002,6 @@ function renderTwoFactorStep(challengeToken) {
     }
   };
   draw();
-}
-
-// ---------- Восстановление пароля ----------
-
-function renderForgot() {
-  document.title = `${t('reset.forgotTitle')} — ${t('meta.title')}`;
-  main.innerHTML = `
-    <div class="auth-wrap view">
-      <div class="auth-card" data-card>
-        <h1>${t('reset.forgotTitle')}</h1>
-        <p class="sub">${t('reset.forgotSub')}</p>
-        <form class="form" data-forgot novalidate>
-          <div class="form-error" data-form-error hidden></div>
-          <div class="field">
-            <label for="email">${t('auth.email')}</label>
-            <input class="input" id="email" name="email" type="email" autocomplete="email" autocapitalize="none" required>
-          </div>
-          <button class="btn btn-primary btn-block" type="submit">${t('reset.sendLink')}</button>
-        </form>
-        <p class="switch"><a href="#/login">${t('reset.backToLogin')}</a></p>
-      </div>
-    </div>`;
-
-  const form = main.querySelector('[data-forgot]');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = form.querySelector('[type="submit"]');
-    const errBox = form.querySelector('[data-form-error]');
-    renderFormError(errBox, null);
-    setLoading(btn, true);
-    try {
-      const email = form.email.value.trim();
-      await api('/auth/password/forgot', { method: 'POST', body: { email } });
-      main.querySelector('[data-card]').innerHTML = `
-        <div class="auth-icon">${icon('check')}</div>
-        <h1>${t('reset.sentTitle')}</h1>
-        <p class="sub">${t('reset.sentText', { email: `<b>${esc(email)}</b>` })}</p>
-        <p class="hint">${t('reset.sentHint')}</p>
-        <p class="switch"><a href="#/login">${t('reset.backToLogin')}</a></p>`;
-    } catch (err) {
-      renderFormError(errBox, err);
-      setLoading(btn, false);
-    }
-  });
-}
-
-function renderReset({ query }) {
-  document.title = `${t('reset.newTitle')} — ${t('meta.title')}`;
-  const token = query.get('token') || '';
-  if (!token) return navigate('/forgot-password');
-  main.innerHTML = `
-    <div class="auth-wrap view">
-      <div class="auth-card" data-card>
-        <h1>${t('reset.newTitle')}</h1>
-        <p class="sub">${t('reset.newSub')}</p>
-        <form class="form" data-reset novalidate>
-          <div class="form-error" data-form-error hidden></div>
-          <div class="field">
-            <label for="new-pass">${t('acc.newPassword')}</label>
-            <input class="input" id="new-pass" name="newPassword" type="password" autocomplete="new-password" required aria-describedby="new-pass-hint">
-            <span class="hint" id="new-pass-hint">${t('auth.pwHint')}</span>
-          </div>
-          <div class="field">
-            <label for="rep-pass">${t('acc.repeatPassword')}</label>
-            <input class="input" id="rep-pass" name="repeatPassword" type="password" autocomplete="new-password" required>
-          </div>
-          <button class="btn btn-primary btn-block" type="submit">${t('reset.save')}</button>
-        </form>
-      </div>
-    </div>`;
-
-  const form = main.querySelector('[data-reset]');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = form.querySelector('[type="submit"]');
-    const errBox = form.querySelector('[data-form-error]');
-    renderFormError(errBox, null);
-    if (form.newPassword.value !== form.repeatPassword.value) {
-      return renderFormError(errBox, { message: t('acc.passwordMismatch') });
-    }
-    setLoading(btn, true);
-    try {
-      await api('/auth/password/reset', { method: 'POST', body: { token, newPassword: form.newPassword.value } });
-      auth.clear(); // все сессии после сброса недействительны
-      main.querySelector('[data-card]').innerHTML = `
-        <div class="auth-icon">${icon('check')}</div>
-        <h1>${t('reset.doneTitle')}</h1>
-        <p class="sub">${t('reset.doneText')}</p>
-        <a class="btn btn-primary btn-block" href="#/login">${t('auth.loginBtn')}</a>`;
-    } catch (err) {
-      renderFormError(errBox, err);
-      setLoading(btn, false);
-    }
-  });
 }
 
 function renderRegister() {
@@ -1189,7 +1094,8 @@ async function renderOrders({ isCurrent }) {
               : t('pay.onDelivery')}</span>
             <span class="order-actions">
               ${!o.paidAt && o.userId === auth.user.id && ['PENDING', 'CONFIRMED'].includes(o.status) ? `<button class="btn btn-primary btn-sm" data-pay="${o.id}">${t('pay.payOrder')}</button>` : ''}
-              ${o.status === 'PENDING' ? `<button class="btn btn-danger-ghost btn-sm" data-cancel="${o.id}">${t('orders.cancel')}</button>` : ''}
+              ${o.paidAt ? `<button class="btn btn-ghost btn-sm" data-receipt="${o.id}">${icon('download', 'icon icon-sm')}${t('pay.receiptPdf')}</button>` : ''}
+              ${o.status === 'PENDING' && (!o.paidAt || auth.isAdmin) ? `<button class="btn btn-danger-ghost btn-sm" data-cancel="${o.id}">${t('orders.cancel')}</button>` : ''}
             </span>
           </div>
         </article>`).join('');
@@ -1200,6 +1106,18 @@ async function renderOrders({ isCurrent }) {
 
   let orders = [];
   box.addEventListener('click', async (e) => {
+    const receiptBtn = e.target.closest('[data-receipt]');
+    if (receiptBtn) {
+      setLoading(receiptBtn, true);
+      try {
+        await downloadReceipt(Number(receiptBtn.dataset.receipt));
+      } catch (err) {
+        errorToast(err);
+      } finally {
+        setLoading(receiptBtn, false);
+      }
+      return;
+    }
     const payBtn = e.target.closest('[data-pay]');
     if (payBtn) {
       const o = orders.find((x) => x.id === Number(payBtn.dataset.pay));

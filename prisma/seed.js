@@ -205,6 +205,7 @@ async function main() {
       await prisma.order.create({
         data: {
           userId: user.id,
+          email: user.email,
           status,
           address: `г. Алматы, ${streets[Math.floor(rand() * streets.length)]}, ${10 + Math.floor(rand() * 180)}`,
           phone: `+7 70${Math.floor(rand() * 8)} ${String(100 + Math.floor(rand() * 900))} ${String(10 + Math.floor(rand() * 90))} ${String(10 + Math.floor(rand() * 90))}`,

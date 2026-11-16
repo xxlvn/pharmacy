@@ -164,9 +164,9 @@ test('PATCH /api/products/:id — user 403, admin 200', async () => {
 
 // ---------- Заказы ----------
 
-test('POST /api/orders — гость 401; userId из тела игнорируется (400)', async () => {
+test('POST /api/orders — гость без почты 400; userId из тела запрещён (400)', async () => {
   const body = { items: [{ productId, quantity: 1 }], address: 'Алматы, Абая 1', phone: '+7 701 000 00 00' };
-  assert.equal((await api('POST', '/api/orders', { body })).status, 401);
+  assert.equal((await api('POST', '/api/orders', { body })).status, 400);
   assert.equal((await api('POST', '/api/orders', { token: userToken, body: { ...body, userId: 1 } })).status, 400);
 });
 
@@ -388,39 +388,6 @@ test('PATCH /api/auth/me/password — проверки, новый токен, �
   assert.equal((await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'NewPassw0rd' } })).status, 200);
 });
 
-// ---------- Восстановление пароля по почте ----------
-
-test('POST /api/auth/password/forgot + reset — письмо со ссылкой, одноразовый токен, старые сессии отключаются', async () => {
-  const reg = await registerUser('forgot');
-  const before = outbox.length;
-
-  // Неизвестная почта: тот же ответ 200, но письмо не уходит
-  const unknown = await api('POST', '/api/auth/password/forgot', { body: { email: `nobody-${stamp}@example.com` } });
-  assert.equal(unknown.status, 200);
-  assert.equal(outbox.length, before);
-
-  const r = await api('POST', '/api/auth/password/forgot', { body: { email: reg.email } });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.message, unknown.body.message);
-  const mail = outbox.at(-1);
-  assert.equal(mail.to, reg.email);
-  const token = mail.text.match(/reset-password\?token=([\w-]+)/)[1];
-  assert.ok(token);
-
-  // В базе — только хеш, не сам токен
-  const stored = await prisma.user.findUnique({ where: { email: reg.email }, select: { resetTokenHash: true } });
-  assert.notEqual(stored.resetTokenHash, token);
-
-  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token: 'x'.repeat(43), newPassword: 'Reset1pass' } })).status, 400);
-  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'short' } })).status, 400);
-
-  await new Promise((res) => setTimeout(res, 1100));
-  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'Reset1pass' } })).status, 200);
-  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'Again1pass' } })).status, 400);
-  assert.equal((await api('GET', '/api/auth/me', { token: reg.body.accessToken })).status, 401);
-  assert.equal((await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'Reset1pass' } })).status, 200);
-});
-
 // ---------- Двухфакторная защита ----------
 
 test('2FA: настройка, вход в два шага, защита от повтора кода, резервные коды, отключение', async () => {
@@ -523,8 +490,84 @@ test('POST /api/orders/:id/pay — только владелец, только l
   assert.equal((await api('POST', `/api/orders/${second.body.data.id}/pay`, { token, body: { cardBrand: 'mastercard', cardLast4: '5100' } })).status, 409);
 
   // Возвращаем остаток и убираем тестовые заказы
-  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token })).status, 200);
+  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token })).status, 409, 'оплаченный заказ покупатель не отменяет');
+  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token: adminToken })).status, 200);
   await prisma.order.deleteMany({ where: { id: { in: [id, second.body.data.id] } } });
+});
+
+// ---------- Заказ без регистрации и PDF-квитанция ----------
+
+test('Гостевой заказ: почта обязательна, оплата по ключу, чек на почту, PDF-квитанция', async () => {
+  const product = await prisma.product.findFirst({ where: { stock: { gte: 5 } }, orderBy: { id: 'asc' } });
+  const body = { items: [{ productId: product.id, quantity: 1 }], address: 'Алматы, ул. Абая, 10', phone: '+7 701 123 45 67' };
+  const email = `guest-${stamp}@example.com`;
+
+  assert.equal((await api('POST', '/api/orders', { body })).status, 400, 'без входа нужна почта');
+  const created = await api('POST', '/api/orders', { body: { ...body, email } });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.userId, null);
+  assert.equal(created.body.data.email, email);
+  assert.equal(created.body.data.accessHash, undefined, 'хеш ключа не отдаётся');
+  const { accessKey } = created.body;
+  assert.ok(accessKey && accessKey.length >= 20);
+  const id = created.body.data.id;
+
+  const pay = (key, extra = {}) =>
+    fetch(`${base}/api/orders/${id}/pay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(key ? { 'X-Order-Key': key } : {}), ...extra },
+      body: JSON.stringify({ cardBrand: 'visa', cardLast4: '4242' }),
+    });
+  const receipt = (query = '', headers = {}) => fetch(`${base}/api/orders/${id}/receipt${query}`, { headers });
+
+  assert.equal((await receipt(`?key=${accessKey}`)).status, 409, 'квитанции нет до оплаты');
+  assert.equal((await pay()).status, 401);
+  assert.equal((await pay('wrong-key-wrong-key-wrong')).status, 403);
+  assert.equal((await pay(accessKey, { Authorization: `Bearer ${otherToken}` })).status, 200, 'ключ работает и у вошедшего');
+  assert.equal((await pay(accessKey)).status, 409);
+
+  // Чек уходит на почту из заказа с PDF во вложении
+  await new Promise((r) => setTimeout(r, 300));
+  const mail = outbox.findLast((m) => m.to === email);
+  assert.ok(mail, 'письмо с чеком отправлено');
+  assert.match(mail.subject, new RegExp(`№${id}`));
+  assert.equal(mail.attachments.length, 1);
+  assert.ok(Buffer.from(mail.attachments[0].content, 'base64').subarray(0, 4).toString() === '%PDF');
+  assert.ok(mail.text.includes(`/api/orders/${id}/receipt?key=`));
+
+  // Квитанция: по ключу, администратору — да; без ключа и чужому — нет
+  const pdf = await receipt(`?key=${accessKey}&lang=kk`);
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+  assert.match(pdf.headers.get('content-disposition'), /attachment; filename="myata-receipt-\d+\.pdf"/);
+  assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 4).toString(), '%PDF');
+  assert.equal((await receipt()).status, 401);
+  assert.equal((await receipt('', { Authorization: `Bearer ${userToken}` })).status, 403);
+  assert.equal((await receipt('', { Authorization: `Bearer ${adminToken}` })).status, 200);
+
+  // Гость не видит список заказов; оплаченный заказ отменяет только администратор
+  assert.equal((await api('GET', `/api/orders/${id}`)).status, 401);
+  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token: adminToken })).status, 200);
+  await prisma.order.deleteMany({ where: { id } });
+});
+
+test('PATCH /api/orders/:id/cancel — оплаченный заказ покупатель отменить не может (409)', async () => {
+  const product = await prisma.product.findFirst({ where: { stock: { gte: 5 } }, orderBy: { id: 'asc' } });
+  const created = await api('POST', '/api/orders', {
+    token: userToken,
+    body: { items: [{ productId: product.id, quantity: 1 }], address: 'Алматы, ул. Абая, 10', phone: '+7 701 123 45 67' },
+  });
+  assert.equal(created.status, 201);
+  const id = created.body.data.id;
+  assert.ok(created.body.data.email, 'почта берётся из аккаунта');
+  assert.equal((await api('POST', `/api/orders/${id}/pay`, { token: userToken, body: { cardBrand: 'visa', cardLast4: '1111' } })).status, 200);
+  const r = await api('PATCH', `/api/orders/${id}/cancel`, { token: userToken });
+  assert.equal(r.status, 409);
+  assert.match(r.body.error.message, /Оплаченный заказ отменить нельзя/);
+  const own = await fetch(`${base}/api/orders/${id}/receipt`, { headers: { Authorization: `Bearer ${userToken}` } });
+  assert.equal(own.status, 200, 'владелец скачивает квитанцию без ключа');
+  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token: adminToken })).status, 200);
+  await prisma.order.deleteMany({ where: { id } });
 });
 
 test('Некорректный JSON (400) и неизвестный маршрут (404)', async () => {

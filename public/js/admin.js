@@ -319,7 +319,7 @@ async function ordersPanel(panel) {
             ${data.map((o) => `
               <tr>
                 <td class="num">${o.id}</td>
-                <td>${esc(o.user.name)}<div class="muted">${esc(o.user.email)}</div></td>
+                <td>${o.user ? esc(o.user.name) : `<span class="badge badge-out">${t('ao.guest')}</span>`}<div class="muted">${esc(o.email)}</div>${o.paidAt ? `<div class="order-paid">${t('pay.paidShort')}</div>` : ''}</td>
                 <td>${o.items.map((i) => `${esc(i.product.name)} × ${i.quantity}`).join('<br>')}<div class="muted">${esc(o.address)}</div></td>
                 <td class="num">${tenge(o.total)}</td>
                 <td><span class="muted">${formatDate(o.createdAt)}</span></td>

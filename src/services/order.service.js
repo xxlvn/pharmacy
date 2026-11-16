@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { sha256 } from '../utils/secretBox.js';
 
 // Допустимые переходы статусов заказа.
 const TRANSITIONS = {
@@ -21,10 +22,19 @@ const orderInclude = {
   user: { select: { id: true, name: true, email: true } },
 };
 
-// Создание заказа. Владелец — всегда req.user.id (userId из тела не принимается).
+// Создание заказа. Владелец — всегда req.user.id (userId из тела не принимается);
+// без входа заказ оформляется как гостевой (userId = null) на указанную почту.
 // Всё выполняется в одной транзакции: проверка наличия, списание остатков, создание заказа.
-export async function create(userId, { items, address, phone, comment }) {
-  return prisma.$transaction(async (tx) => {
+// Возвращает заказ и ключ доступа к нему (показывается один раз, в базе — только хеш).
+export async function create(user, { items, address, phone, comment, email }) {
+  const contactEmail = email || user?.email;
+  if (!contactEmail) {
+    throw ApiError.badRequest('Укажите почту: на неё придёт чек об оплате', [
+      { location: 'body', field: 'email', message: 'Укажите почту' },
+    ]);
+  }
+  const accessKey = randomBytes(24).toString('base64url');
+  const order = await prisma.$transaction(async (tx) => {
     const ids = items.map((i) => i.productId);
     const products = await tx.product.findMany({ where: { id: { in: ids } } });
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -54,7 +64,9 @@ export async function create(userId, { items, address, phone, comment }) {
 
     return tx.order.create({
       data: {
-        userId,
+        userId: user?.id ?? null,
+        email: contactEmail,
+        accessHash: sha256(accessKey),
         address,
         phone,
         comment: comment || null,
@@ -70,6 +82,7 @@ export async function create(userId, { items, address, phone, comment }) {
       include: orderInclude,
     });
   });
+  return { order, accessKey };
 }
 
 // Пользователь видит только свои заказы, администратор — все.
@@ -105,19 +118,44 @@ export async function cancel(user, id) {
   if (!order) throw ApiError.notFound('Заказ не найден');
   assertCanAccess(user, order);
 
-  if (order.status !== 'PENDING' && user.role !== 'ADMIN') {
-    throw ApiError.conflict('Отменить можно только заказ в статусе PENDING');
+  if (user.role !== 'ADMIN') {
+    if (order.paidAt) throw ApiError.conflict('Оплаченный заказ отменить нельзя. Обратитесь в поддержку');
+    if (order.status !== 'PENDING') throw ApiError.conflict('Отменить можно только заказ в статусе PENDING');
   }
   return changeStatus(order, 'CANCELLED');
 }
 
-// Оплата заказа картой. Платить может только владелец, один раз,
+// Доступ к заказу без входа в аккаунт: по ключу, который выдаётся при оформлении.
+// В базе хранится только SHA-256 ключа.
+export async function findByAccessKey(id, key) {
+  if (!key) return null;
+  const order = await prisma.order.findUnique({ where: { id }, include: orderInclude, omit: { accessHash: false } });
+  if (!order?.accessHash || !safeEqual(order.accessHash, sha256(String(key)))) return null;
+  const { accessHash, ...rest } = order;
+  return rest;
+}
+
+// Кто может оплатить заказ и скачать квитанцию: владелец (по токену),
+// администратор (только квитанцию) или гость с ключом заказа.
+export async function getForBuyer({ user, accessKey }, id, { allowAdmin = false } = {}) {
+  const byKey = await findByAccessKey(id, accessKey);
+  if (byKey) return byKey;
+  if (!user) {
+    throw accessKey ? ApiError.forbidden('Нет доступа к этому заказу') : ApiError.unauthorized();
+  }
+  const order = await prisma.order.findUnique({ where: { id }, include: orderInclude });
+  if (!order) throw ApiError.notFound('Заказ не найден');
+  if (order.userId !== user.id && !(allowAdmin && user.role === 'ADMIN')) {
+    throw ApiError.forbidden('Нет доступа к этому заказу');
+  }
+  return order;
+}
+
+// Оплата заказа картой. Платить может только покупатель, один раз,
 // пока заказ не отменён и не передан в доставку.
 // Номер карты, срок и CVC проверяются в браузере и сюда не приходят.
-export async function pay(user, id, { cardBrand, cardLast4 }) {
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) throw ApiError.notFound('Заказ не найден');
-  if (order.userId !== user.id) throw ApiError.forbidden('Оплатить можно только свой заказ');
+export async function pay(buyer, id, { cardBrand, cardLast4 }) {
+  const order = await getForBuyer(buyer, id);
   if (order.paidAt) throw ApiError.conflict('Заказ уже оплачен');
   if (!['PENDING', 'CONFIRMED'].includes(order.status)) {
     throw ApiError.conflict('Этот заказ уже нельзя оплатить');
@@ -131,6 +169,15 @@ export async function pay(user, id, { cardBrand, cardLast4 }) {
   if (count === 0) throw ApiError.conflict('Заказ уже оплачен');
   return prisma.order.findUnique({ where: { id }, include: orderInclude });
 }
+
+// Квитанция есть только у оплаченного заказа
+export async function getReceiptOrder(buyer, id) {
+  const order = await getForBuyer(buyer, id, { allowAdmin: true });
+  if (!order.paidAt) throw ApiError.conflict('Квитанция появится после оплаты заказа');
+  return order;
+}
+
+const safeEqual = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 // Смена статуса администратором.
 export async function updateStatus(id, status) {

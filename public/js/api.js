@@ -28,7 +28,32 @@ export async function apiUpload(blob, { path = '/uploads', method = 'POST' } = {
   return data;
 }
 
-export async function api(path, { method = 'GET', body, query } = {}) {
+// Скачивание файла из API (PDF-квитанция): с токеном входа или ключом гостевого заказа.
+export async function apiDownload(path, { headers = {}, fileName } = {}) {
+  const h = { 'Accept-Language': lang(), ...headers };
+  if (auth.token) h.Authorization = `Bearer ${auth.token}`;
+  let res;
+  try {
+    res = await fetch(`/api${path}`, { headers: h });
+  } catch {
+    throw new ApiRequestError(0, t('apiErr.network'));
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiRequestError(res.status, data?.error?.message || `Ошибка ${res.status}`, data?.error?.details);
+  }
+  const blob = await res.blob();
+  const name = fileName || res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || 'download';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+export async function api(path, { method = 'GET', body, query, headers: extraHeaders } = {}) {
   let url = `/api${path}`;
   if (query) {
     const params = new URLSearchParams();
@@ -39,7 +64,7 @@ export async function api(path, { method = 'GET', body, query } = {}) {
     if (qs) url += `?${qs}`;
   }
 
-  const headers = { Accept: 'application/json', 'Accept-Language': lang() };
+  const headers = { Accept: 'application/json', 'Accept-Language': lang(), ...extraHeaders };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = auth.token;
   if (token) headers.Authorization = `Bearer ${token}`;
