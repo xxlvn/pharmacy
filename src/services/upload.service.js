@@ -32,6 +32,13 @@ export async function create(buffer, declaredType) {
   return { ...upload, url: `/api/uploads/${upload.id}` };
 }
 
+// Удаляет загруженный файл по адресу /api/uploads/<id> (например, прежнюю аватарку).
+export async function removeByUrl(url) {
+  const m = /^\/api\/uploads\/(\d+)$/.exec(url || '');
+  if (!m) return;
+  await prisma.upload.deleteMany({ where: { id: Number(m[1]) } });
+}
+
 export async function getById(id) {
   const upload = await prisma.upload.findUnique({ where: { id } });
   if (!upload) throw ApiError.notFound('Изображение не найдено');

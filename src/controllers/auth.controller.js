@@ -13,3 +13,13 @@ export async function login(req, res) {
 export async function me(req, res) {
   res.json({ user: req.user });
 }
+
+export async function setAvatar(req, res) {
+  // Владелец — пользователь из токена: поменять аватар можно только себе.
+  const declared = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  res.json({ user: await authService.setAvatar(req.user.id, req.body, declared) });
+}
+
+export async function removeAvatar(req, res) {
+  res.json({ user: await authService.removeAvatar(req.user.id) });
+}

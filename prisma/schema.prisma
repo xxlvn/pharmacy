@@ -29,6 +29,7 @@ model User {
   name         String
   passwordHash String   @map("password_hash")
   role         Role     @default(USER)
+  avatarUrl    String?  @map("avatar_url") // /api/uploads/<id>, загружается самим пользователем
   createdAt    DateTime @default(now()) @map("created_at")
 
   orders Order[]

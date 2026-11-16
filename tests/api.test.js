@@ -293,6 +293,36 @@ test('GET /api/uploads/:id — отдаёт файл с правильным т�
   assert.equal((await fetch(`${base}/api/uploads/999999`)).status, 404);
 });
 
+test('PUT /api/auth/me/avatar — гость 401, не картинка 415; аватар ставится, заменяется и удаляется', async () => {
+  const put = async (body, type, token) => {
+    const headers = { 'Content-Type': type };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${base}/api/auth/me/avatar`, { method: 'PUT', headers, body });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+  assert.equal((await put(PNG_1x1, 'image/png')).status, 401);
+  assert.equal((await put(Buffer.from('nope'), 'image/png', userToken)).status, 415);
+
+  const first = await put(PNG_1x1, 'image/png', userToken);
+  assert.equal(first.status, 200);
+  assert.match(first.body.user.avatarUrl, /^\/api\/uploads\/\d+$/);
+  assert.equal(first.body.user.passwordHash, undefined);
+
+  // замена: старый файл удаляется
+  const second = await put(PNG_1x1, 'image/png', userToken);
+  assert.notEqual(second.body.user.avatarUrl, first.body.user.avatarUrl);
+  assert.equal((await fetch(base + first.body.user.avatarUrl)).status, 404);
+  assert.equal((await api('GET', '/api/auth/me', { token: userToken })).body.user.avatarUrl, second.body.user.avatarUrl);
+
+  // чужой аватар не меняется: у второго пользователя его по-прежнему нет
+  assert.equal((await api('GET', '/api/auth/me', { token: otherToken })).body.user.avatarUrl, null);
+
+  const del = await api('DELETE', '/api/auth/me/avatar', { token: userToken });
+  assert.equal(del.status, 200);
+  assert.equal(del.body.user.avatarUrl, null);
+  assert.equal((await fetch(base + second.body.user.avatarUrl)).status, 404);
+});
+
 test('PATCH /api/products/:id — imageUrl может быть /api/uploads/<id>', async () => {
   const p = await api('POST', '/api/products', {
     token: adminToken,

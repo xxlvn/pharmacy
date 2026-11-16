@@ -10,13 +10,13 @@ export class ApiRequestError extends Error {
   }
 }
 
-// Загрузка файла (фото товара): тело запроса — сам файл, а не JSON.
-export async function apiUpload(blob) {
+// Загрузка файла (фото товара, аватарка): тело запроса — сам файл, а не JSON.
+export async function apiUpload(blob, { path = '/uploads', method = 'POST' } = {}) {
   const headers = { Accept: 'application/json', 'Accept-Language': lang(), 'Content-Type': blob.type };
   if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
   let res;
   try {
-    res = await fetch('/api/uploads', { method: 'POST', headers, body: blob });
+    res = await fetch(`/api${path}`, { method, headers, body: blob });
   } catch {
     throw new ApiRequestError(0, t('apiErr.network'));
   }

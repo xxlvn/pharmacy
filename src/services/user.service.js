@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { publicUserSelect } from '../utils/publicUser.js';
+import { removeByUrl } from './upload.service.js';
 
 export function list() {
   return prisma.user.findMany({
@@ -22,7 +23,8 @@ export async function remove(currentUser, id) {
     throw ApiError.conflict('Нельзя удалить собственную учётную запись');
   }
   await ensureExists(id);
-  await prisma.user.delete({ where: { id } });
+  const user = await prisma.user.delete({ where: { id }, select: { avatarUrl: true } });
+  await removeByUrl(user.avatarUrl); // аватарка удаляется вместе с аккаунтом
 }
 
 async function ensureExists(id) {

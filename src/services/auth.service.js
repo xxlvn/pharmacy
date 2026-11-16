@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 import { publicUserSelect, toPublicUser } from '../utils/publicUser.js';
+import * as uploadService from './upload.service.js';
 
 // Параметры Argon2id (рекомендации OWASP: 19 MiB памяти, 2 итерации).
 const HASH_OPTIONS = {
@@ -43,6 +44,31 @@ export async function register({ email, name, password }) {
   });
 
   return { user, accessToken: signToken(user) };
+}
+
+// Аватарка: файл сохраняется так же, как фото товаров (таблица uploads),
+// а прежний файл пользователя удаляется, чтобы не копить мусор в базе.
+export async function setAvatar(userId, buffer, declaredType) {
+  const upload = await uploadService.create(buffer, declaredType);
+  const before = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: upload.url },
+    select: publicUserSelect,
+  });
+  if (before?.avatarUrl && before.avatarUrl !== upload.url) await uploadService.removeByUrl(before.avatarUrl);
+  return user;
+}
+
+export async function removeAvatar(userId) {
+  const before = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } });
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: null },
+    select: publicUserSelect,
+  });
+  if (before?.avatarUrl) await uploadService.removeByUrl(before.avatarUrl);
+  return user;
 }
 
 export async function login({ email, password }) {

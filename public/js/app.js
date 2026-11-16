@@ -1,12 +1,12 @@
 // Клиентское приложение интернет-аптеки: роутер на hash и страницы.
-import { api } from './api.js';
+import { api, apiUpload } from './api.js';
 import { auth, cart, subscribe } from './store.js';
 import {
   esc, tenge, formatDate, icon, formIcon, statusBadge,
   toast, errorToast, renderFormError, setLoading, confirmDialog,
 } from './ui.js';
 import {
-  t, unit, lang, setLang, onLangChange, LANGS, fmtDate,
+  t, unit, lang, setLang, onLangChange, LANGS, fmtDate, localizeError,
   categoryName, formName, dosageText,
 } from './i18n.js';
 import { PAGES, INFO_LINKS, SUPPORT_EMAIL } from './info.js';
@@ -104,6 +104,13 @@ function applyStaticText() {
 
 const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
 
+// Аватар: загруженное фото или первая буква имени на зелёном круге
+function avatarHtml(user, cls = 'avatar') {
+  return user.avatarUrl
+    ? `<span class="${cls} has-img" aria-hidden="true"><img src="${esc(user.avatarUrl)}" alt=""></span>`
+    : `<span class="${cls}" aria-hidden="true">${esc(initial(user.name))}</span>`;
+}
+
 function renderHeader() {
   const account = document.querySelector('[data-account]');
   if (auth.isAuthed) {
@@ -111,16 +118,16 @@ function renderHeader() {
     account.innerHTML = `
       <button type="button" class="avatar-btn" data-account-toggle aria-haspopup="menu" aria-expanded="false"
         aria-controls="account-menu" aria-label="${esc(t('account.menu'))}: ${esc(u.name)}">
-        <span class="avatar" aria-hidden="true">${esc(initial(u.name))}</span>
+        ${avatarHtml(u)}
       </button>
       <div class="account-menu" id="account-menu" role="menu" hidden>
-        <div class="account-menu-head" role="presentation">
+        <a role="menuitem" class="account-menu-head" href="#/account" title="${esc(t('account.profile'))}">
           <strong>${esc(u.name)}</strong>
           <span>${esc(u.email)}</span>
-        </div>
-        <a role="menuitem" href="#/account">${icon('user', 'icon icon-sm')}${t('account.profile')}</a>
-        <a role="menuitem" href="#/orders">${icon('receipt', 'icon icon-sm')}${t('nav.orders')}</a>
+        </a>
+        <div class="account-menu-sep" role="separator"></div>
         ${auth.isAdmin ? `<a role="menuitem" href="#/admin">${icon('dashboard', 'icon icon-sm')}${t('account.adminPanel')}</a>` : ''}
+        <a role="menuitem" href="#/orders">${icon('receipt', 'icon icon-sm')}${t('nav.orders')}</a>
         <button type="button" role="menuitem" class="danger" data-logout>${icon('logout', 'icon icon-sm')}${t('account.logout')}</button>
       </div>`;
   } else {
@@ -1018,10 +1025,18 @@ function renderAccount() {
         <h1 class="page-title">${t('account.profile')}</h1>
         <div class="account-page">
           <div class="account-card">
-            <span class="avatar avatar-lg" aria-hidden="true">${esc(initial(u.name))}</span>
-            <div>
+            ${avatarHtml(u, 'avatar avatar-lg')}
+            <div class="account-card-body">
               <h2>${esc(u.name)}</h2>
               <p class="muted">${esc(u.email)}</p>
+              <div class="avatar-actions">
+                <label class="btn btn-ghost btn-sm file-btn">
+                  ${icon('upload', 'icon icon-sm')}${u.avatarUrl ? t('acc.changePhoto') : t('acc.addPhoto')}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" data-avatar-file>
+                </label>
+                ${u.avatarUrl ? `<button type="button" class="btn btn-danger-ghost btn-sm" data-avatar-remove>${t('acc.removePhoto')}</button>` : ''}
+              </div>
+              <p class="hint" data-avatar-status aria-live="polite">${t('acc.photoHint')}</p>
             </div>
           </div>
           <dl class="doc-req">
@@ -1038,6 +1053,64 @@ function renderAccount() {
         </div>
       </div>
     </section>`;
+
+  const status = main.querySelector('[data-avatar-status]');
+  const fileInput = main.querySelector('[data-avatar-file]');
+  const busy = (on) => main.querySelectorAll('.avatar-actions .btn, [data-avatar-file]').forEach((b) => { b.disabled = on; b.classList.toggle('is-disabled', on); });
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return (status.textContent = t('ap.fileType'));
+    if (file.size > 20 * 1024 * 1024) return (status.textContent = t('ap.fileTooBig'));
+    status.textContent = t('ap.uploading');
+    busy(true);
+    try {
+      const blob = await squareAvatar(file);
+      const { user } = await apiUpload(blob, { path: '/auth/me/avatar', method: 'PUT' });
+      auth.set(auth.token, user); // шапка перерисуется сама
+      renderAccount();
+      main.querySelector('[data-avatar-status]').textContent = t('acc.photoSaved');
+    } catch (err) {
+      status.textContent = localizeError(err).message || t('ap.uploadFailed');
+      busy(false);
+    }
+  });
+
+  main.querySelector('[data-avatar-remove]')?.addEventListener('click', async () => {
+    busy(true);
+    try {
+      const { user } = await api('/auth/me/avatar', { method: 'DELETE' });
+      auth.set(auth.token, user);
+      renderAccount();
+      main.querySelector('[data-avatar-status]').textContent = t('acc.photoRemoved');
+    } catch (err) {
+      errorToast(err);
+      busy(false);
+    }
+  });
+}
+
+// Аватар: квадрат 256×256 из центра фото, сжатый в WebP (запасной вариант — JPEG).
+// Так в базу попадает файл в несколько килобайт, а не снимок с телефона.
+async function squareAvatar(file) {
+  const SIZE = 256;
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const sx = (bitmap.width - side) / 2;
+  const sy = (bitmap.height - side) / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, SIZE, SIZE);
+  bitmap.close?.();
+  let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.88));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.88));
+  return blob;
 }
 
 // ---------- Информационные страницы ----------

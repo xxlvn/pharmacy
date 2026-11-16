@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
+import { ALLOWED_TYPES, MAX_UPLOAD_BYTES } from '../services/upload.service.js';
 import rateLimit from 'express-rate-limit';
 import * as ctrl from '../controllers/auth.controller.js';
 import { validate } from '../middleware/validate.js';
@@ -22,5 +23,9 @@ const authLimiter = rateLimit({
 router.post('/register', authLimiter, validate({ body: registerBody }), ctrl.register);
 router.post('/login', authLimiter, validate({ body: loginBody }), ctrl.login);
 router.get('/me', requireAuth, ctrl.me);
+
+// Аватарка текущего пользователя: тело запроса — сам файл (JPEG, PNG или WebP до 2 МБ)
+router.put('/me/avatar', requireAuth, express.raw({ type: ALLOWED_TYPES, limit: MAX_UPLOAD_BYTES }), ctrl.setAvatar);
+router.delete('/me/avatar', requireAuth, ctrl.removeAvatar);
 
 export default router;
