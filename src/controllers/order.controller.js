@@ -21,3 +21,7 @@ export async function cancel(req, res) {
 export async function updateStatus(req, res) {
   res.json({ data: await orderService.updateStatus(req.validated.params.id, req.validated.body.status) });
 }
+
+export async function pay(req, res) {
+  res.json({ data: await orderService.pay(req.user, req.validated.params.id, req.validated.body) });
+}

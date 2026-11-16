@@ -216,6 +216,16 @@ export const orderCreateBody = z
   })
   .strict('Недопустимое поле. Владелец заказа определяется по токену');
 
+// Оплата картой: только платёжная система и последние 4 цифры.
+// Полный номер, срок и CVC сервер не принимает — лишние поля дают 400.
+export const CARD_BRANDS = ['visa', 'mastercard', 'mir', 'amex', 'unionpay', 'card'];
+export const orderPayBody = z
+  .object({
+    cardBrand: z.enum(CARD_BRANDS, { error: 'Неизвестная платёжная система' }),
+    cardLast4: z.string({ error: 'Нужны последние 4 цифры карты' }).regex(/^\d{4}$/, 'Нужны последние 4 цифры карты'),
+  })
+  .strict('Недопустимое поле. Полные данные карты на сервер не передаются');
+
 export const orderStatusBody = z
   .object({
     status: z.enum(ORDER_STATUSES, { error: `Статус: одно из ${ORDER_STATUSES.join(', ')}` }),

@@ -16,6 +16,7 @@ import { PRIVACY } from './privacy.js';
 // Юридические документы с оглавлением (см. renderDoc)
 const DOCS = { offer: OFFER, privacy: PRIVACY };
 import { renderAdmin } from './admin.js';
+import { openCheckout } from './checkout.js';
 
 const main = document.getElementById('main');
 
@@ -788,7 +789,19 @@ function renderCart() {
                   <label for="comment">${t('cart.comment')} <span class="hint">${t('common.optional')}</span></label>
                   <textarea class="textarea" id="comment" name="comment" placeholder="${esc(t('cart.commentPh'))}"></textarea>
                 </div>
-                <button class="btn btn-primary btn-block" type="submit">${t('cart.submit')}</button>
+                <fieldset class="pay-methods">
+                  <legend>${t('pay.method')}</legend>
+                  <label class="pay-method">
+                    <input type="radio" name="payment" value="card" checked>
+                    <span><b>${t('pay.methodCard')}</b><small>${t('pay.methodCardHint')}</small></span>
+                    <span class="pay-cards" aria-hidden="true"><span>VISA</span><span>MC</span></span>
+                  </label>
+                  <label class="pay-method">
+                    <input type="radio" name="payment" value="cash">
+                    <span><b>${t('pay.methodCash')}</b><small>${t('pay.methodCashHint')}</small></span>
+                  </label>
+                </fieldset>
+                <button class="btn btn-primary btn-block" type="submit" data-submit-checkout>${t('pay.toPayment', { amount: tenge(cart.total) })}</button>
               </form>` : `
               <div class="notice notice-info">${icon('info')}<span>${t('cart.loginNotice')}</span></div>
               <a class="btn btn-primary btn-block" href="#/login" data-login-redirect>${t('cart.loginBtn')}</a>`}
@@ -817,12 +830,21 @@ function renderCart() {
   });
 
   const form = main.querySelector('[data-checkout]');
+  // Текст кнопки зависит от способа оплаты
+  form?.addEventListener('change', (e) => {
+    if (e.target.name !== 'payment') return;
+    form.querySelector('[data-submit-checkout]').textContent =
+      form.payment.value === 'card' ? t('pay.toPayment', { amount: tenge(cart.total) }) : t('cart.submit');
+  });
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type="submit"]');
     const errBox = form.querySelector('[data-form-error]');
     renderFormError(errBox, null);
     setLoading(btn, true);
+    const payByCard = form.payment.value === 'card';
+    // Строки для окна оплаты собираем до очистки корзины
+    const itemsHtml = checkoutItemsHtml(cart.list);
     try {
       const { data: order } = await api('/orders', {
         method: 'POST',
@@ -834,6 +856,17 @@ function renderCart() {
         },
       });
       cart.clear();
+      if (payByCard) {
+        // Заказ уже создан; если окно закрыть без оплаты, он останется с оплатой при получении
+        openCheckout(order, {
+          itemsHtml,
+          onDone: (paid) => {
+            if (!paid) toast(t('pay.notPaidToast', { id: order.id }));
+            navigate('/orders');
+          },
+        });
+        return;
+      }
       toast(t('cart.placed', { id: order.id, total: tenge(order.total) }));
       navigate('/orders');
     } catch (err) {
@@ -843,6 +876,18 @@ function renderCart() {
       setLoading(btn, false);
     }
   });
+}
+
+const CARD_LABEL = { visa: 'VISA', mastercard: 'Mastercard', mir: 'МИР', amex: 'AMEX', unionpay: 'UnionPay' };
+
+// Список товаров для левой колонки окна оплаты (из корзины или из заказа)
+function checkoutItemsHtml(items) {
+  return items.map((i) => `
+    <li>
+      ${productArt({ ...i, stock: 1 }, 'thumb')}
+      <div><div class="name">${esc(i.name)}</div><div class="sub">${i.qty} × ${tenge(i.price)}</div></div>
+      <div class="price">${tenge(i.price * i.qty)}</div>
+    </li>`).join('');
 }
 
 // ---------- Вход и регистрация ----------
@@ -1121,6 +1166,7 @@ async function renderOrders({ isCurrent }) {
     try {
       const { data } = await api('/orders', { query: { limit: 50 } });
       if (!isCurrent()) return;
+      orders = data;
       if (data.length === 0) {
         box.innerHTML = emptyState('box', t('orders.emptyTitle'), t('orders.emptyText'), `<a class="btn btn-primary" href="#/">${t('common.toCatalog')}</a>`);
         return;
@@ -1138,7 +1184,13 @@ async function renderOrders({ isCurrent }) {
           </ul>
           <div class="order-foot">
             <span>${esc(o.address)} · ${esc(o.phone)}</span>
-            ${o.status === 'PENDING' ? `<button class="btn btn-danger-ghost btn-sm" data-cancel="${o.id}">${t('orders.cancel')}</button>` : ''}
+            <span class="order-pay-state">${o.paidAt
+              ? `<span class="order-paid">${icon('check', 'icon icon-sm')}${t('pay.paidWith', { card: `${CARD_LABEL[o.cardBrand] ?? t('pay.card')} •••• ${esc(o.cardLast4)}` })}</span>`
+              : t('pay.onDelivery')}</span>
+            <span class="order-actions">
+              ${!o.paidAt && o.userId === auth.user.id && ['PENDING', 'CONFIRMED'].includes(o.status) ? `<button class="btn btn-primary btn-sm" data-pay="${o.id}">${t('pay.payOrder')}</button>` : ''}
+              ${o.status === 'PENDING' ? `<button class="btn btn-danger-ghost btn-sm" data-cancel="${o.id}">${t('orders.cancel')}</button>` : ''}
+            </span>
           </div>
         </article>`).join('');
     } catch (err) {
@@ -1146,7 +1198,15 @@ async function renderOrders({ isCurrent }) {
     }
   };
 
+  let orders = [];
   box.addEventListener('click', async (e) => {
+    const payBtn = e.target.closest('[data-pay]');
+    if (payBtn) {
+      const o = orders.find((x) => x.id === Number(payBtn.dataset.pay));
+      const items = o.items.map((it) => ({ ...it.product, qty: it.quantity, price: it.price }));
+      openCheckout(o, { itemsHtml: checkoutItemsHtml(items), onDone: (paid) => paid && load() });
+      return;
+    }
     const btn = e.target.closest('[data-cancel]');
     if (!btn) return;
     const ok = await confirmDialog({

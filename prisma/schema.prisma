@@ -95,6 +95,12 @@ model Order {
   address   String
   phone     String
   comment   String?
+  // Оплата картой онлайн. Полный номер, срок и CVC на сервер не попадают:
+  // хранятся только платёжная система и последние 4 цифры. paidAt = null — оплата при получении.
+  paidAt     DateTime? @map("paid_at")
+  cardBrand  String?   @map("card_brand")
+  cardLast4  String?   @map("card_last4")
+  paymentRef String?   @unique @map("payment_ref")
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 

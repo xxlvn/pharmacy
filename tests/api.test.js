@@ -485,6 +485,48 @@ test('2FA: настройка, вход в два шага, защита от п
   assert.equal(plain.body.user.totpEnabled, false);
 });
 
+// ---------- Оплата заказа картой ----------
+
+test('POST /api/orders/:id/pay — только владелец, только last4, без повторной оплаты', async () => {
+  const product = await prisma.product.findFirst({ where: { stock: { gte: 5 } }, orderBy: { id: 'asc' } });
+  const buyer = await registerUser('pay');
+  const token = buyer.body.accessToken;
+  const created = await api('POST', '/api/orders', {
+    token,
+    body: { items: [{ productId: product.id, quantity: 1 }], address: 'Алматы, ул. Абая, 10', phone: '+7 701 123 45 67' },
+  });
+  assert.equal(created.status, 201);
+  const id = created.body.data.id;
+  assert.equal(created.body.data.paidAt, null);
+  const pay = (body, t = token) => api('POST', `/api/orders/${id}/pay`, { token: t, body });
+
+  assert.equal((await api('POST', `/api/orders/${id}/pay`, { body: { cardBrand: 'visa', cardLast4: '4242' } })).status, 401);
+  assert.equal((await pay({ cardBrand: 'visa', cardLast4: '4242' }, otherToken)).status, 403);
+  // Полный номер карты сервер не принимает
+  assert.equal((await pay({ cardBrand: 'visa', cardLast4: '4242', cardNumber: '4242424242424242' })).status, 400);
+  assert.equal((await pay({ cardBrand: 'visa', cardLast4: '42' })).status, 400);
+  assert.equal((await pay({ cardBrand: 'bitcoin', cardLast4: '4242' })).status, 400);
+
+  const paid = await pay({ cardBrand: 'visa', cardLast4: '4242' });
+  assert.equal(paid.status, 200);
+  assert.ok(paid.body.data.paidAt);
+  assert.equal(paid.body.data.cardLast4, '4242');
+  assert.match(paid.body.data.paymentRef, /^MT-/);
+  assert.equal((await pay({ cardBrand: 'visa', cardLast4: '4242' })).status, 409);
+
+  // Отменённый заказ оплатить нельзя
+  const second = await api('POST', '/api/orders', {
+    token,
+    body: { items: [{ productId: product.id, quantity: 1 }], address: 'Алматы, ул. Абая, 10', phone: '+7 701 123 45 67' },
+  });
+  assert.equal((await api('PATCH', `/api/orders/${second.body.data.id}/cancel`, { token })).status, 200);
+  assert.equal((await api('POST', `/api/orders/${second.body.data.id}/pay`, { token, body: { cardBrand: 'mastercard', cardLast4: '5100' } })).status, 409);
+
+  // Возвращаем остаток и убираем тестовые заказы
+  assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token })).status, 200);
+  await prisma.order.deleteMany({ where: { id: { in: [id, second.body.data.id] } } });
+});
+
 test('Некорректный JSON (400) и неизвестный маршрут (404)', async () => {
   const res = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad json' });
   assert.equal(res.status, 400);

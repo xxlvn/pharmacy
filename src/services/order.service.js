@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
+import { randomBytes } from 'node:crypto';
 
 // Допустимые переходы статусов заказа.
 const TRANSITIONS = {
@@ -14,7 +15,7 @@ const orderInclude = {
   items: {
     orderBy: { id: 'asc' },
     include: {
-      product: { select: { id: true, name: true, form: true, dosage: true, requiresPrescription: true } },
+      product: { select: { id: true, name: true, form: true, dosage: true, imageUrl: true, requiresPrescription: true } },
     },
   },
   user: { select: { id: true, name: true, email: true } },
@@ -108,6 +109,27 @@ export async function cancel(user, id) {
     throw ApiError.conflict('Отменить можно только заказ в статусе PENDING');
   }
   return changeStatus(order, 'CANCELLED');
+}
+
+// Оплата заказа картой. Платить может только владелец, один раз,
+// пока заказ не отменён и не передан в доставку.
+// Номер карты, срок и CVC проверяются в браузере и сюда не приходят.
+export async function pay(user, id, { cardBrand, cardLast4 }) {
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) throw ApiError.notFound('Заказ не найден');
+  if (order.userId !== user.id) throw ApiError.forbidden('Оплатить можно только свой заказ');
+  if (order.paidAt) throw ApiError.conflict('Заказ уже оплачен');
+  if (!['PENDING', 'CONFIRMED'].includes(order.status)) {
+    throw ApiError.conflict('Этот заказ уже нельзя оплатить');
+  }
+  const paymentRef = `MT-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
+  // Условие paidAt: null защищает от двойной оплаты при одновременных запросах
+  const { count } = await prisma.order.updateMany({
+    where: { id, paidAt: null },
+    data: { paidAt: new Date(), cardBrand, cardLast4, paymentRef },
+  });
+  if (count === 0) throw ApiError.conflict('Заказ уже оплачен');
+  return prisma.order.findUnique({ where: { id }, include: orderInclude });
 }
 
 // Смена статуса администратором.
