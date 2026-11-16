@@ -66,8 +66,37 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent; /* без серой вспышки при нажатии на телефоне */
   scroll-padding-top: calc(var(--header-h) + 16px);
   scrollbar-color: var(--line-strong) var(--bg);
+  /* Тёмный фон под страницей: если браузер всё же оттянет край, за шапкой и меню
+     будет тот же цвет, что у них, а не светлая полоса */
+  background: var(--ink);
+}
+
+/* Отключаем «резиновую» прокрутку и pull-to-refresh: из-за них на телефоне
+   шапка и нижнее меню отрывались от краёв экрана при прокрутке за край */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+button,
+a,
+[role='button'],
+label.check,
+.chip {
+  touch-action: manipulation; /* без задержки 300 мс перед нажатием */
+}
+
+button,
+[role='button'],
+.chip,
+.tab,
+.main-nav a {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -249,8 +278,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   position: sticky;
   top: 0;
   z-index: 40;
+  padding-top: env(safe-area-inset-top, 0px); /* под вырезом и Dynamic Island */
   background: var(--ink);
   color: var(--on-dark);
+}
+
+/* iPhone приближает страницу, если у поля ввода шрифт меньше 16px */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  .select {
+    font-size: 16px;
+  }
 }
 
 .header-row {
@@ -388,14 +428,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
     z-index: 45;
     justify-content: space-around;
     margin: 0;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
     background: var(--ink);
     border-top: 1px solid rgb(255 255 255 / 0.08);
+    transform: translateZ(0); /* отдельный слой: меню не дёргается, когда прячется адресная строка */
   }
   .main-nav a { font-size: 14px; }
   .header-actions { margin-left: auto; }
   .account-name { display: none; }
-  body { padding-bottom: 64px; }
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  /* Без transform на .site-header: он сделал бы шапку контейнером для position: fixed,
+     и нижнее меню (оно внутри шапки) прилипло бы к ней */
 }
 
 /* ---------- Hero ---------- */
@@ -1207,7 +1250,7 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 16px 24px;
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: var(--surface);
 }
@@ -1254,7 +1297,7 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   pointer-events: none;
 }
 @media (max-width: 767px) {
-  .toaster { left: 16px; bottom: 80px; align-items: stretch; }
+  .toaster { left: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); align-items: stretch; }
 }
 
 .toast {
