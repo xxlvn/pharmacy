@@ -1437,6 +1437,71 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   .lang-switch button:not([aria-pressed='true']):hover { color: var(--on-dark); }
 }
 
+/* Документ (публичная оферта): оглавление слева, текст справа */
+.doc-head { max-width: 72ch; margin-bottom: 32px; }
+.doc-head h1 { font-size: clamp(2rem, 4.4vw, 3.25rem); font-weight: 600; letter-spacing: -0.03em; }
+.doc-sub { margin-top: 12px; color: var(--ink-muted); font-size: 17px; }
+
+.doc-layout { display: grid; gap: 32px; }
+@media (min-width: 960px) {
+  .doc-layout { grid-template-columns: 260px minmax(0, 1fr); gap: 48px; align-items: start; }
+}
+
+.doc-toc {
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+@media (min-width: 960px) {
+  .doc-toc {
+    position: sticky;
+    top: calc(var(--header-h) + 24px);
+    max-height: calc(100dvh - var(--header-h) - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.doc-toc-title { margin-bottom: 8px; padding: 0 8px; color: var(--ink-muted); font-size: 13px; font-weight: 600; }
+.doc-toc ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.doc-toc a {
+  display: block;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.doc-toc a[aria-current] { background: var(--surface-tint); color: var(--ink); font-weight: 600; }
+@media (hover: hover) and (pointer: fine) {
+  .doc-toc a:not([aria-current]):hover { background: #f0f2ee; color: var(--ink); }
+}
+@media (min-width: 600px) and (max-width: 959px) {
+  .doc-toc ol { grid-template-columns: 1fr 1fr; column-gap: 8px; }
+}
+
+.doc-body { max-width: 75ch; }
+.doc-section { scroll-margin-top: calc(var(--header-h) + 24px); padding-bottom: 32px; }
+.doc-section + .doc-section { padding-top: 32px; border-top: 1px solid var(--line); }
+.doc-section h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 16px; }
+.doc-section p { margin-top: 12px; line-height: 1.65; }
+.doc-section h2 + p { margin-top: 0; }
+.doc-section a { color: var(--accent-ink); font-weight: 500; }
+.doc-list, .doc-terms { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.6; }
+.doc-terms { list-style: none; padding-left: 0; }
+.doc-terms li { padding-left: 16px; position: relative; }
+.doc-terms li::before { content: ''; position: absolute; left: 0; top: 0.7em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+.doc-req { margin: 0; display: grid; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.doc-req > div { display: grid; gap: 4px 24px; padding: 14px 16px; }
+.doc-req > div + div { border-top: 1px solid var(--line); }
+@media (min-width: 600px) { .doc-req > div { grid-template-columns: 200px 1fr; } }
+.doc-req dt { color: var(--ink-muted); font-size: 14px; }
+.doc-req dd { margin: 0; font-weight: 500; }
+.doc-req dd.is-placeholder { color: var(--ink-soft); font-weight: 400; font-style: normal; }
+
 /* Информационные страницы */
 .info-page { max-width: 68ch; }
 .info-page p { margin-top: 16px; font-size: 17px; line-height: 1.6; color: var(--ink); }

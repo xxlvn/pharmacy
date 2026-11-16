@@ -10,6 +10,7 @@ import {
   categoryName, formName, dosageText,
 } from './i18n.js';
 import { PAGES, INFO_LINKS, SUPPORT_EMAIL } from './info.js';
+import { OFFER } from './offer.js';
 import { renderAdmin } from './admin.js';
 
 const main = document.getElementById('main');
@@ -941,6 +942,7 @@ async function renderOrders({ isCurrent }) {
 // ---------- Информационные страницы ----------
 
 function renderInfo({ params }) {
+  if (params[0] === 'offer') return renderOffer();
   const page = PAGES[params[0]];
   if (!page) {
     main.innerHTML = `<section class="section"><div class="container view">${emptyState('search', t('err.notFoundTitle'), t('err.notFoundText'), `<a class="btn btn-primary" href="#/">${t('common.toCatalog')}</a>`)}</div></section>`;
@@ -957,6 +959,77 @@ function renderInfo({ params }) {
         </article>
       </div>
     </section>`;
+}
+
+// ---------- Публичная оферта ----------
+// Документ с оглавлением: слева закреплённый список разделов, справа текст.
+// Ссылки оглавления прокручивают к разделу сами (#… в адресе занят роутером),
+// а текущий раздел подсвечивается при прокрутке.
+
+function offerBlock(b) {
+  if (typeof b === 'string') return `<p>${esc(b)}</p>`;
+  if (b.html) return `<p>${b.html}</p>`; // статичный текст из offer.js со ссылкой на политику
+  if (b.list) return `<ul class="doc-list">${b.list.map((li) => `<li>${esc(li)}</li>`).join('')}</ul>`;
+  if (b.terms) {
+    return `<ul class="doc-terms">${b.terms.map(([term, def]) => `<li><strong>${esc(term)}</strong> — ${esc(def)}</li>`).join('')}</ul>`;
+  }
+  return '';
+}
+
+function offerRequisites(rows) {
+  return `<dl class="doc-req">${rows.map(([label, value, placeholder]) => `
+    <div>
+      <dt>${esc(label)}</dt>
+      <dd${placeholder ? ' class="is-placeholder"' : ''}>${value.includes('@') ? `<a href="mailto:${esc(value)}">${esc(value)}</a>` : esc(value)}</dd>
+    </div>`).join('')}</dl>`;
+}
+
+let offerObserver = null;
+
+function renderOffer() {
+  const doc = OFFER[lang()];
+  document.title = `${doc.title} — ${t('meta.title')}`;
+  main.innerHTML = `
+    <section class="section">
+      <div class="container view">
+        <header class="doc-head">
+          <h1>${esc(doc.title)}</h1>
+          <p class="doc-sub">${esc(doc.subtitle)}</p>
+        </header>
+        <div class="doc-layout">
+          <nav class="doc-toc" aria-labelledby="doc-toc-title">
+            <p class="doc-toc-title" id="doc-toc-title">${esc(doc.toc)}</p>
+            <ol>
+              ${doc.sections.map((s, i) => `<li><a href="#/info/offer" data-anchor="offer-${s.id}">${i + 1}. ${esc(s.title)}</a></li>`).join('')}
+            </ol>
+          </nav>
+          <article class="doc-body">
+            ${doc.sections.map((s, i) => `
+              <section class="doc-section" id="offer-${s.id}">
+                <h2>${i + 1}. ${esc(s.title)}</h2>
+                ${s.requisites ? offerRequisites(s.requisites) : s.blocks.map(offerBlock).join('')}
+              </section>`).join('')}
+          </article>
+        </div>
+      </div>
+    </section>`;
+
+  const links = [...main.querySelectorAll('[data-anchor]')];
+  main.querySelector('.doc-toc').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-anchor]');
+    if (!a) return;
+    e.preventDefault();
+    document.getElementById(a.dataset.anchor)?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  });
+
+  // Подсветка раздела, который сейчас в верхней части экрана
+  offerObserver?.disconnect();
+  offerObserver = new IntersectionObserver((entries) => {
+    const visible = entries.filter((en) => en.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+    if (!visible) return;
+    links.forEach((l) => l.toggleAttribute('aria-current', l.dataset.anchor === visible.target.id));
+  }, { rootMargin: '-90px 0px -65% 0px' });
+  main.querySelectorAll('.doc-section').forEach((s) => offerObserver.observe(s));
 }
 
 // ---------- Старт ----------
