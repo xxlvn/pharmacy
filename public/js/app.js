@@ -312,9 +312,9 @@ async function renderCatalog({ query, isCurrent }) {
       <section class="hero">
         <div class="container hero-grid">
           <div>
-            <h1>${t('hero.title')}</h1>
-            <p class="hero-lead">${t('hero.lead')}</p>
-            <form class="search" role="search" data-search>
+            <h1 class="hero-anim d1">${t('hero.title')}</h1>
+            <p class="hero-lead hero-anim d2">${t('hero.lead')}</p>
+            <form class="search hero-anim d3" role="search" data-search>
               <label>
                 ${icon('search')}
                 <span class="visually-hidden">${t('hero.searchLabel')}</span>
@@ -322,7 +322,7 @@ async function renderCatalog({ query, isCurrent }) {
               </label>
               <button class="btn btn-primary" type="submit">${t('hero.find')}</button>
             </form>
-            <ul class="hero-facts" data-facts>
+            <ul class="hero-facts hero-anim d4" data-facts>
               <li>${icon('box')}<span data-fact-total>${t('hero.loading')}</span></li>
               <li>${icon('truck')}${t('hero.delivery')}</li>
               <li>${icon('doc')}${t('hero.rx')}</li>
@@ -368,6 +368,8 @@ async function renderCatalog({ query, isCurrent }) {
       if (chip) updateCatalogQuery({ categoryId: chip.dataset.category, page: 1 });
     });
     setupChipsScroll(main.querySelector('[data-chips-wrap]'));
+    playHeroIntro(main.querySelector('.hero'));
+    setupBlisterTilt(main.querySelector('.blister'));
     main.querySelector('.filters').addEventListener('change', (e) => {
       const f = e.target.dataset.filter;
       if (f === 'inStock') updateCatalogQuery({ inStock: e.target.checked ? 'true' : '', page: 1 });
@@ -461,6 +463,72 @@ async function renderCatalog({ query, isCurrent }) {
     count.textContent = '';
     results.innerHTML = emptyState('alert', t('catalog.errorTitle'), err.message, `<button class="btn btn-primary" data-reset>${t('common.retry')}</button>`);
   }
+}
+
+// ---------- Анимации первого экрана ----------
+
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+let heroIntroPlayed = false;
+
+// Появление hero играет один раз за визит: при возврате в каталог со страницы товара
+// или при смене языка повторять его незачем, это уже не первое впечатление.
+function playHeroIntro(hero) {
+  if (heroIntroPlayed || !hero) return;
+  heroIntroPlayed = true;
+  if (reduceMotion()) return;
+  hero.classList.add('hero-intro');
+  // Таблетки «выщёлкиваются» в ячейки по очереди после того, как блистер встал на место
+  hero.querySelectorAll('.blister span').forEach((pill, i) => {
+    pill.animate(
+      [{ opacity: 0, transform: 'scale(0.85)' }, { opacity: 1, transform: 'scale(1)' }],
+      { duration: 420, delay: 520 + i * 40, easing: EASE_OUT, fill: 'backwards' },
+    );
+  });
+  setTimeout(() => hero.classList.remove('hero-intro'), 1800);
+}
+
+// Блистер наклоняется в 3D вслед за курсором. Значения догоняют цель плавно
+// (каждый кадр проходят 12% оставшегося пути), поэтому движение мягкое, как на пружине,
+// и его можно прервать в любой момент. Только для мыши и без «уменьшения движения».
+function setupBlisterTilt(el) {
+  if (!el || reduceMotion() || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  const REST = { rx: 0, ry: 0, rot: -6, lift: 0 };
+  const cur = { ...REST };
+  let target = { ...REST };
+  let frame = 0;
+
+  const render = () => {
+    let moving = false;
+    for (const k of Object.keys(cur)) {
+      const d = target[k] - cur[k];
+      if (Math.abs(d) > 0.01) moving = true;
+      cur[k] += d * 0.12;
+    }
+    el.style.transform =
+      `perspective(900px) translateY(${cur.lift.toFixed(2)}px) rotateX(${cur.rx.toFixed(2)}deg) ` +
+      `rotateY(${cur.ry.toFixed(2)}deg) rotate(${cur.rot.toFixed(2)}deg)`;
+    if (moving) frame = requestAnimationFrame(render);
+    else {
+      frame = 0;
+      if (target === REST) el.style.transform = ''; // в покое — снова обычное правило из CSS
+    }
+  };
+  const kick = () => { if (!frame) frame = requestAnimationFrame(render); };
+
+  el.addEventListener('pointerenter', () => el.classList.add('is-hover'));
+  el.addEventListener('pointermove', (e) => {
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5; // −0.5…0.5
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    target = { rx: -py * 16, ry: px * 18, rot: -3, lift: -6 };
+    kick();
+  });
+  el.addEventListener('pointerleave', () => {
+    el.classList.remove('is-hover');
+    target = REST;
+    kick();
+  });
 }
 
 // Лента категорий: стрелки влево/вправо появляются, только когда есть куда прокручивать.

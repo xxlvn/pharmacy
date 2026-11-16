@@ -533,14 +533,59 @@ button, input, select, textarea { font: inherit; color: inherit; }
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 12px;
-  transform: rotate(-6deg);
+  transform: perspective(900px) rotate(-6deg);
+  transform-style: preserve-3d;
 }
+/* Пока курсор над блистером, JS наклоняет его вслед за мышью (см. setupBlisterTilt) */
+.blister.is-hover { will-change: transform; }
 
 .blister span {
   border-radius: 999px;
   background: #31473a;
   box-shadow: inset 0 -3px 6px rgb(0 0 0 / 0.25);
-  transition: transform 500ms var(--ease-out), background-color 300ms ease;
+  /* уход — быстрее и без задержки: отпускание должно ощущаться мгновенным */
+  transition:
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out),
+    background-color 300ms ease;
+}
+
+/* При наведении таблетки «приподнимаются» над подложкой волной по столбцам */
+@media (hover: hover) and (pointer: fine) {
+  .blister.is-hover span {
+    transform: translateZ(18px);
+    transition-duration: 380ms, 380ms, 300ms;
+  }
+  .blister.is-hover span.is-pill {
+    box-shadow: inset 0 -3px 6px rgb(0 0 0 / 0.2), 0 10px 14px -6px rgb(0 0 0 / 0.55);
+  }
+  .blister.is-hover span:nth-child(4n + 2) { transition-delay: 30ms; }
+  .blister.is-hover span:nth-child(4n + 3) { transition-delay: 60ms; }
+  .blister.is-hover span:nth-child(4n + 4) { transition-delay: 90ms; }
+}
+
+/* Появление первого экрана: текст поднимается из лёгкого размытия по очереди,
+   блистер «доворачивается» на место. Играет один раз за визит (класс ставит JS). */
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(14px); filter: blur(6px); }
+}
+@keyframes blister-in {
+  from { opacity: 0; transform: perspective(900px) rotate(-16deg) scale(0.92); }
+}
+.hero-intro .hero-anim {
+  animation: hero-rise 720ms var(--ease-out) backwards;
+}
+.hero-intro .hero-anim.d1 { animation-delay: 60ms; }
+.hero-intro .hero-anim.d2 { animation-delay: 160ms; }
+.hero-intro .hero-anim.d3 { animation-delay: 240ms; }
+.hero-intro .hero-anim.d4 { animation-delay: 320ms; }
+.hero-intro .hero h1 em,
+.hero-intro h1 em {
+  display: inline-block;
+  animation: hero-rise 720ms var(--ease-out) 140ms backwards;
+}
+.hero-intro .blister {
+  animation: blister-in 900ms var(--ease-out) 120ms backwards;
 }
 
 .blister span.is-pill {
@@ -708,11 +753,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: box-shadow 200ms ease;
+  transition:
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
 }
+.product-art img { transition: transform 400ms var(--ease-out); }
 
+/* Наведение на карточку: подъём на 4px, тень глубже, фото чуть приближается.
+   Карточки видят десятки раз за визит, поэтому движение маленькое и быстрое. */
 @media (hover: hover) and (pointer: fine) {
-  .product-card:hover { box-shadow: var(--shadow); }
+  .product-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 28px -12px rgb(25 43 27 / 0.28);
+  }
+  .product-card:hover .product-art img { transform: scale(1.04); }
 }
 
 .product-art {
@@ -1646,4 +1700,11 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   }
   .skeleton { animation: none; }
   .blister { transform: none; }
+  /* без движения: появление первого экрана, подъём карточек и таблеток отключены */
+  .hero-intro .hero-anim,
+  .hero-intro h1 em,
+  .hero-intro .blister { animation: none; }
+  .product-card:hover,
+  .product-card:hover .product-art img,
+  .blister.is-hover span { transform: none; }
 }
