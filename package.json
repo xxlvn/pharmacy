@@ -20,7 +20,14 @@
   "prisma": {
     "seed": "node prisma/seed.js"
   },
-  "keywords": ["rest-api", "express", "prisma", "postgresql", "jwt", "pharmacy"],
+  "keywords": [
+    "rest-api",
+    "express",
+    "prisma",
+    "postgresql",
+    "jwt",
+    "pharmacy"
+  ],
   "license": "MIT",
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -30,6 +37,8 @@
     "express-rate-limit": "^8.7.4",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
+    "otpauth": "^9.6.0",
+    "qrcode": "^1.5.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {

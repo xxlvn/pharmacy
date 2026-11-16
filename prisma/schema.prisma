@@ -32,6 +32,18 @@ model User {
   avatarUrl    String?  @map("avatar_url") // /api/uploads/<id>, загружается самим пользователем
   // Момент последней смены пароля: токены, выданные раньше, перестают действовать
   passwordChangedAt DateTime? @map("password_changed_at")
+
+  // Восстановление пароля: хранится только SHA-256 хеш одноразового токена из письма
+  resetTokenHash    String?   @unique @map("reset_token_hash")
+  resetTokenExpires DateTime? @map("reset_token_expires")
+
+  // Двухфакторная аутентификация (TOTP, приложение-аутентификатор).
+  // Секреты хранятся зашифрованными (AES-256-GCM), резервные коды — только хешами.
+  totpEnabled       Boolean   @default(false) @map("totp_enabled")
+  totpSecret        String?   @map("totp_secret")
+  totpPendingSecret String?   @map("totp_pending_secret")
+  totpLastStep      Int?      @map("totp_last_step") // защита от повторного использования кода
+  recoveryCodes     String[]  @default([]) @map("recovery_codes")
   createdAt    DateTime @default(now()) @map("created_at")
 
   orders Order[]

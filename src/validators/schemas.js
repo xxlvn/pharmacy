@@ -60,6 +60,37 @@ export const loginBody = z.object({
   password: z.string({ error: 'Пароль обязателен' }).min(1, 'Пароль обязателен').max(128),
 });
 
+// ---------- Восстановление пароля и 2FA ----------
+
+export const forgotBody = z.object({ email: emailField }).strict();
+
+export const resetBody = z
+  .object({
+    token: z.string({ error: 'Нет токена сброса' }).min(20, 'Нет токена сброса').max(200),
+    newPassword: newPasswordField,
+  })
+  .strict();
+
+// Код из приложения (6 цифр) или резервный код (ABCDE-FGHJK)
+const codeField = z
+  .string({ error: 'Введите код' })
+  .trim()
+  .min(6, 'Введите код')
+  .max(20, 'Слишком длинный код');
+
+export const twoFactorLoginBody = z
+  .object({ challengeToken: z.string().min(1).max(1000), code: codeField })
+  .strict();
+
+export const codeBody = z.object({ code: codeField }).strict();
+
+export const disableTwoFactorBody = z
+  .object({
+    currentPassword: z.string({ error: 'Укажите текущий пароль' }).min(1, 'Укажите текущий пароль').max(128),
+    code: codeField,
+  })
+  .strict();
+
 // ---------- Categories ----------
 
 export const categoryCreateBody = z

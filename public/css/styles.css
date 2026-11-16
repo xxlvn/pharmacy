@@ -1865,3 +1865,80 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   .product-card:hover .product-art img,
   .blister.is-hover span { transform: none; }
 }
+
+/* ---------- Восстановление пароля и 2FA ---------- */
+.label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+  .text-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+.auth-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+.auth-card .hint { color: var(--ink-muted); font-size: 14px; }
+.auth-card > .btn-block { margin-top: 8px; }
+.code-input {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+.code-input::placeholder { color: var(--ink-soft); letter-spacing: 0.18em; }
+
+.tfa-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tfa-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink-muted); font-size: 15px; }
+.tfa-setup { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.tfa-qr {
+  width: 180px;
+  height: 180px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.tfa-secret { display: grid; gap: 8px; justify-items: start; min-width: 0; }
+.tfa-secret code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.tfa-codes-note { display: grid; gap: 4px; }
+.tfa-codes-note h3 { font-size: 16px; font-weight: 600; }
+.tfa-codes {
+  margin: 0;
+  padding: 16px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+.tfa-codes code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.tfa-warn { color: var(--warn); font-size: 14px; font-weight: 500; }
+.tfa-subform { padding-top: 16px; border-top: 1px solid var(--line); }

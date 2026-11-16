@@ -27,6 +27,8 @@ const routes = [
   { pattern: /^\/cart$/, view: renderCart },
   { pattern: /^\/login$/, view: renderLogin },
   { pattern: /^\/register$/, view: renderRegister },
+  { pattern: /^\/forgot-password$/, view: renderForgot },
+  { pattern: /^\/reset-password$/, view: renderReset },
   { pattern: /^\/orders$/, view: renderOrders, nav: 'orders', auth: 'user' },
   { pattern: /^\/account$/, view: renderAccount, auth: 'user' },
   { pattern: /^\/admin$/, view: renderAdmin, nav: 'admin', auth: 'admin' },
@@ -867,7 +869,10 @@ function renderLogin() {
             <input class="input" id="email" name="email" type="email" autocomplete="username" required>
           </div>
           <div class="field">
-            <label for="password">${t('auth.password')}</label>
+            <div class="label-row">
+              <label for="password">${t('auth.password')}</label>
+              <a class="text-link" href="#/forgot-password">${t('auth.forgot')}</a>
+            </div>
             <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
           </div>
           <button class="btn btn-primary btn-block" type="submit">${t('auth.loginBtn')}</button>
@@ -884,16 +889,166 @@ function renderLogin() {
     renderFormError(errBox, null);
     setLoading(btn, true);
     try {
-      const { accessToken, user } = await api('/auth/login', {
+      const res = await api('/auth/login', {
         method: 'POST',
         body: { email: form.email.value, password: form.password.value },
       });
-      auth.set(accessToken, user);
-      toast(t('toast.loggedIn', { name: esc(user.name) }));
-      afterLogin();
+      if (res.twoFactorRequired) return renderTwoFactorStep(res.challengeToken);
+      finishLogin(res);
     } catch (err) {
       renderFormError(errBox, err);
     } finally {
+      setLoading(btn, false);
+    }
+  });
+}
+
+function finishLogin({ accessToken, user }) {
+  auth.set(accessToken, user);
+  toast(t('toast.loggedIn', { name: esc(user.name) }));
+  afterLogin();
+}
+
+// Второй шаг входа: код из приложения-аутентификатора или резервный код
+function renderTwoFactorStep(challengeToken) {
+  let recovery = false;
+  const card = main.querySelector('.auth-card');
+  const draw = () => {
+    card.innerHTML = `
+      <div class="auth-icon">${icon('shield')}</div>
+      <h1>${t('tfa.loginTitle')}</h1>
+      <p class="sub">${recovery ? t('tfa.loginSubRecovery') : t('tfa.loginSub')}</p>
+      <form class="form" data-tfa novalidate>
+        <div class="form-error" data-form-error hidden></div>
+        <div class="field">
+          <label for="tfa-code">${recovery ? t('tfa.recoveryCode') : t('tfa.code')}</label>
+          ${recovery
+            ? '<input class="input code-input" id="tfa-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCDE-FGHJK" maxlength="11" required>'
+            : '<input class="input code-input" id="tfa-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" placeholder="000000" maxlength="6" required>'}
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">${t('tfa.confirm')}</button>
+      </form>
+      <p class="switch"><button type="button" class="text-link" data-toggle>${recovery ? t('tfa.useApp') : t('tfa.useRecovery')}</button></p>
+      <p class="switch"><a href="#/login" data-back>${t('tfa.back')}</a></p>`;
+
+    const form = card.querySelector('[data-tfa]');
+    form.code.focus();
+    card.querySelector('[data-toggle]').addEventListener('click', () => { recovery = !recovery; draw(); });
+    card.querySelector('[data-back]').addEventListener('click', (e) => { e.preventDefault(); renderLogin(); });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('[type="submit"]');
+      const errBox = form.querySelector('[data-form-error]');
+      renderFormError(errBox, null);
+      setLoading(btn, true);
+      try {
+        finishLogin(await api('/auth/login/2fa', { method: 'POST', body: { challengeToken, code: form.code.value } }));
+      } catch (err) {
+        renderFormError(errBox, err);
+        form.code.select();
+        setLoading(btn, false);
+      }
+    });
+    // Код из приложения отправляется сам, как только набраны 6 цифр
+    if (!recovery) {
+      form.code.addEventListener('input', () => {
+        form.code.value = form.code.value.replace(/\D/g, '').slice(0, 6);
+        if (form.code.value.length === 6) form.requestSubmit();
+      });
+    }
+  };
+  draw();
+}
+
+// ---------- Восстановление пароля ----------
+
+function renderForgot() {
+  document.title = `${t('reset.forgotTitle')} — ${t('meta.title')}`;
+  main.innerHTML = `
+    <div class="auth-wrap view">
+      <div class="auth-card" data-card>
+        <h1>${t('reset.forgotTitle')}</h1>
+        <p class="sub">${t('reset.forgotSub')}</p>
+        <form class="form" data-forgot novalidate>
+          <div class="form-error" data-form-error hidden></div>
+          <div class="field">
+            <label for="email">${t('auth.email')}</label>
+            <input class="input" id="email" name="email" type="email" autocomplete="email" autocapitalize="none" required>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">${t('reset.sendLink')}</button>
+        </form>
+        <p class="switch"><a href="#/login">${t('reset.backToLogin')}</a></p>
+      </div>
+    </div>`;
+
+  const form = main.querySelector('[data-forgot]');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('[type="submit"]');
+    const errBox = form.querySelector('[data-form-error]');
+    renderFormError(errBox, null);
+    setLoading(btn, true);
+    try {
+      const email = form.email.value.trim();
+      await api('/auth/password/forgot', { method: 'POST', body: { email } });
+      main.querySelector('[data-card]').innerHTML = `
+        <div class="auth-icon">${icon('check')}</div>
+        <h1>${t('reset.sentTitle')}</h1>
+        <p class="sub">${t('reset.sentText', { email: `<b>${esc(email)}</b>` })}</p>
+        <p class="hint">${t('reset.sentHint')}</p>
+        <p class="switch"><a href="#/login">${t('reset.backToLogin')}</a></p>`;
+    } catch (err) {
+      renderFormError(errBox, err);
+      setLoading(btn, false);
+    }
+  });
+}
+
+function renderReset({ query }) {
+  document.title = `${t('reset.newTitle')} — ${t('meta.title')}`;
+  const token = query.get('token') || '';
+  if (!token) return navigate('/forgot-password');
+  main.innerHTML = `
+    <div class="auth-wrap view">
+      <div class="auth-card" data-card>
+        <h1>${t('reset.newTitle')}</h1>
+        <p class="sub">${t('reset.newSub')}</p>
+        <form class="form" data-reset novalidate>
+          <div class="form-error" data-form-error hidden></div>
+          <div class="field">
+            <label for="new-pass">${t('acc.newPassword')}</label>
+            <input class="input" id="new-pass" name="newPassword" type="password" autocomplete="new-password" required aria-describedby="new-pass-hint">
+            <span class="hint" id="new-pass-hint">${t('auth.pwHint')}</span>
+          </div>
+          <div class="field">
+            <label for="rep-pass">${t('acc.repeatPassword')}</label>
+            <input class="input" id="rep-pass" name="repeatPassword" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit">${t('reset.save')}</button>
+        </form>
+      </div>
+    </div>`;
+
+  const form = main.querySelector('[data-reset]');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('[type="submit"]');
+    const errBox = form.querySelector('[data-form-error]');
+    renderFormError(errBox, null);
+    if (form.newPassword.value !== form.repeatPassword.value) {
+      return renderFormError(errBox, { message: t('acc.passwordMismatch') });
+    }
+    setLoading(btn, true);
+    try {
+      await api('/auth/password/reset', { method: 'POST', body: { token, newPassword: form.newPassword.value } });
+      auth.clear(); // все сессии после сброса недействительны
+      main.querySelector('[data-card]').innerHTML = `
+        <div class="auth-icon">${icon('check')}</div>
+        <h1>${t('reset.doneTitle')}</h1>
+        <p class="sub">${t('reset.doneText')}</p>
+        <a class="btn btn-primary btn-block" href="#/login">${t('auth.loginBtn')}</a>`;
+    } catch (err) {
+      renderFormError(errBox, err);
       setLoading(btn, false);
     }
   });
@@ -1088,6 +1243,8 @@ function renderAccount() {
             </div>
           </form>
 
+          <section class="panel" data-tfa-panel aria-live="polite"></section>
+
           <dl class="doc-req">
             <div><dt>${t('acc.role')}</dt><dd>${u.role === 'ADMIN' ? t('au.admin') : t('au.user')}</dd></div>
             ${u.createdAt ? `<div><dt>${t('acc.since')}</dt><dd>${fmtDate(u.createdAt, 'date')}</dd></div>` : ''}
@@ -1187,6 +1344,8 @@ function renderAccount() {
     }
   });
 
+  mountTwoFactor(main.querySelector('[data-tfa-panel]'));
+
   main.querySelector('[data-avatar-remove]')?.addEventListener('click', async () => {
     busy(true);
     try {
@@ -1199,6 +1358,193 @@ function renderAccount() {
       busy(false);
     }
   });
+}
+
+// ---------- Двухфакторная защита в аккаунте ----------
+// Состояния: выключена → настройка (QR + код) → резервные коды → включена.
+
+function mountTwoFactor(panel) {
+  const head = (on) => `
+    <div class="tfa-head">
+      <h2 class="panel-title">${t('tfa.title')}</h2>
+      <span class="badge ${on ? 'badge-ok' : 'badge-out'}">${on ? t('tfa.on') : t('tfa.off')}</span>
+    </div>`;
+
+  const setUser = (patch) => auth.set(auth.token, { ...auth.user, ...patch });
+
+  // Обработчик формы с кодом: ошибки показываются в форме, кнопка блокируется на время запроса
+  const onSubmit = (form, action) => form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('[type="submit"]');
+    const errBox = form.querySelector('[data-form-error]');
+    renderFormError(errBox, null);
+    setLoading(btn, true);
+    try {
+      await action(form);
+    } catch (err) {
+      renderFormError(errBox, err);
+      setLoading(btn, false);
+    }
+  });
+
+  const codeField = (id, label = t('tfa.codeOrRecovery')) => `
+    <div class="field">
+      <label for="${id}">${label}</label>
+      <input class="input code-input" id="${id}" name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" maxlength="11" required>
+    </div>`;
+
+  function showDisabled() {
+    panel.innerHTML = `${head(false)}
+      <p class="muted">${t('tfa.offText')}</p>
+      <div class="form-actions"><button type="button" class="btn btn-primary" data-start>${icon('shield', 'icon icon-sm')}${t('tfa.enable')}</button></div>`;
+    panel.querySelector('[data-start]').addEventListener('click', async (e) => {
+      setLoading(e.currentTarget, true);
+      try {
+        showSetup(await api('/auth/2fa/setup', { method: 'POST' }));
+      } catch (err) {
+        errorToast(err);
+        setLoading(e.currentTarget, false);
+      }
+    });
+  }
+
+  function showSetup({ qr, secret }) {
+    const pretty = secret.match(/.{1,4}/g).join(' ');
+    panel.innerHTML = `${head(false)}
+      <ol class="tfa-steps">
+        <li>${t('tfa.step1')}</li>
+        <li>${t('tfa.step2')}</li>
+      </ol>
+      <div class="tfa-setup">
+        <img class="tfa-qr" src="${qr}" width="180" height="180" alt="${t('tfa.qrAlt')}">
+        <div class="tfa-secret">
+          <span class="hint">${t('tfa.manual')}</span>
+          <code data-secret>${pretty}</code>
+          <button type="button" class="btn btn-ghost btn-sm" data-copy-secret>${t('tfa.copy')}</button>
+        </div>
+      </div>
+      <form class="form" data-enable novalidate>
+        <div class="form-error" data-form-error hidden></div>
+        <div class="field">
+          <label for="tfa-enable-code">${t('tfa.step3')}</label>
+          <input class="input code-input" id="tfa-enable-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" placeholder="000000" maxlength="6" required>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">${t('tfa.confirmEnable')}</button>
+          <button class="btn btn-ghost" type="button" data-cancel>${t('common.cancel')}</button>
+        </div>
+      </form>`;
+    panel.querySelector('[data-copy-secret]').addEventListener('click', () => copyText(secret));
+    panel.querySelector('[data-cancel]').addEventListener('click', showDisabled);
+    const form = panel.querySelector('[data-enable]');
+    form.code.addEventListener('input', () => { form.code.value = form.code.value.replace(/\D/g, '').slice(0, 6); });
+    onSubmit(form, async () => {
+      const { recoveryCodes } = await api('/auth/2fa/enable', { method: 'POST', body: { code: form.code.value } });
+      setUser({ totpEnabled: true });
+      toast(t('tfa.enabledToast'));
+      showCodes(recoveryCodes, true);
+    });
+  }
+
+  // Резервные коды показываются один раз — сразу после включения или перевыпуска
+  function showCodes(codes, fresh) {
+    panel.innerHTML = `${head(true)}
+      <div class="tfa-codes-note">
+        <h3>${fresh ? t('tfa.codesTitle') : t('tfa.newCodesTitle')}</h3>
+        <p class="muted">${t('tfa.codesText')}</p>
+      </div>
+      <ul class="tfa-codes">${codes.map((c) => `<li><code>${c}</code></li>`).join('')}</ul>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost btn-sm" data-copy>${t('tfa.copy')}</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-download>${t('tfa.download')}</button>
+      </div>
+      <div class="form-actions"><button type="button" class="btn btn-primary" data-done>${t('tfa.saved')}</button></div>`;
+    const text = `${t('tfa.fileHeader', { email: auth.user.email })}\n\n${codes.join('\n')}\n`;
+    panel.querySelector('[data-copy]').addEventListener('click', () => copyText(codes.join('\n')));
+    panel.querySelector('[data-download]').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      a.download = 'myata-recovery-codes.txt';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    panel.querySelector('[data-done]').addEventListener('click', showEnabled);
+  }
+
+  async function showEnabled() {
+    panel.innerHTML = `${head(true)}<p class="muted">${t('tfa.onText')}</p>`;
+    let left = null;
+    try {
+      ({ recoveryCodesLeft: left } = await api('/auth/2fa'));
+    } catch { /* число кодов не критично */ }
+    if (!panel.isConnected) return;
+    panel.innerHTML = `${head(true)}
+      <p class="muted">${t('tfa.onText')}</p>
+      ${left !== null ? `<p class="${left <= 2 ? 'tfa-warn' : 'hint'}">${t('tfa.codesLeft', { n: left })}</p>` : ''}
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost btn-sm" data-regen>${t('tfa.regen')}</button>
+        <button type="button" class="btn btn-danger-ghost btn-sm" data-disable>${t('tfa.disable')}</button>
+      </div>
+      <div data-tfa-action></div>`;
+    const slot = panel.querySelector('[data-tfa-action]');
+
+    panel.querySelector('[data-regen]').addEventListener('click', () => {
+      slot.innerHTML = `
+        <form class="form tfa-subform" data-regen-form novalidate>
+          <div class="form-error" data-form-error hidden></div>
+          ${codeField('tfa-regen-code', t('tfa.code'))}
+          <p class="hint">${t('tfa.regenHint')}</p>
+          <div class="form-actions"><button class="btn btn-primary btn-sm" type="submit">${t('tfa.regenBtn')}</button></div>
+        </form>`;
+      const form = slot.querySelector('form');
+      form.code.focus();
+      onSubmit(form, async () => {
+        const { recoveryCodes } = await api('/auth/2fa/recovery-codes', { method: 'POST', body: { code: form.code.value } });
+        showCodes(recoveryCodes, false);
+      });
+    });
+
+    panel.querySelector('[data-disable]').addEventListener('click', () => {
+      slot.innerHTML = `
+        <form class="form tfa-subform" data-disable-form novalidate>
+          <div class="form-error" data-form-error hidden></div>
+          <input type="text" name="username" autocomplete="username" value="${esc(auth.user.email)}" hidden>
+          <div class="field">
+            <label for="tfa-dis-pass">${t('acc.currentPassword')}</label>
+            <input class="input" id="tfa-dis-pass" name="currentPassword" type="password" autocomplete="current-password" required>
+          </div>
+          ${codeField('tfa-dis-code')}
+          <div class="form-actions"><button class="btn btn-dark btn-sm" type="submit">${t('tfa.disableBtn')}</button></div>
+        </form>`;
+      const form = slot.querySelector('form');
+      form.currentPassword.focus();
+      onSubmit(form, async () => {
+        await api('/auth/2fa/disable', { method: 'POST', body: { currentPassword: form.currentPassword.value, code: form.code.value } });
+        setUser({ totpEnabled: false });
+        toast(t('tfa.disabledToast'));
+        showDisabled();
+      });
+    });
+  }
+
+  // Сохранённый в браузере профиль мог устареть (2FA включили на другом устройстве) — уточняем у сервера
+  if (auth.user.totpEnabled) showEnabled();
+  else showDisabled();
+  api('/auth/2fa').then(({ enabled }) => {
+    if (enabled === !!auth.user.totpEnabled || !panel.isConnected) return;
+    setUser({ totpEnabled: enabled });
+    if (enabled) showEnabled();
+    else showDisabled();
+  }).catch(() => {});
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(t('tfa.copied'));
+  } catch {
+    toast(t('tfa.copyFailed'));
+  }
 }
 
 // Аватар: квадрат 256×256 из центра фото, сжатый в WebP (запасной вариант — JPEG).

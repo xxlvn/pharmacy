@@ -5,6 +5,11 @@ import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 import { publicUserSelect, toPublicUser } from '../utils/publicUser.js';
 import * as uploadService from './upload.service.js';
+import * as twofa from './twofa.service.js';
+import { sendMail, resetPasswordEmail } from './mail.service.js';
+import { assertPassword } from '../utils/password.js';
+import { sha256 } from '../utils/secretBox.js';
+import { randomBytes } from 'node:crypto';
 
 // Параметры Argon2id (рекомендации OWASP: 19 MiB памяти, 2 итерации).
 const HASH_OPTIONS = {
@@ -46,17 +51,6 @@ export async function register({ email, name, password }) {
   return { user, accessToken: signToken(user) };
 }
 
-// Проверка текущего пароля перед чувствительными изменениями.
-// Ошибка — 400, а не 401: 401 клиент воспринимает как «сессия истекла» и выходит из аккаунта.
-async function assertPassword(userId, password) {
-  const { passwordHash } = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
-  if (!password || !(await argon2.verify(passwordHash, password))) {
-    throw ApiError.badRequest('Неверный текущий пароль', [
-      { location: 'body', field: 'currentPassword', message: 'Неверный текущий пароль' },
-    ]);
-  }
-}
-
 // Смена имени и/или почты текущего пользователя.
 export async function updateProfile(userId, { name, email, currentPassword }) {
   const current = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
@@ -81,13 +75,71 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
       { location: 'body', field: 'newPassword', message: 'Новый пароль совпадает с текущим' },
     ]);
   }
-  // Секунды, без миллисекунд: в JWT время выдачи (iat) тоже в секундах
-  const changedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash: await hashPassword(newPassword), passwordChangedAt: changedAt },
+    data: { passwordHash: await hashPassword(newPassword), passwordChangedAt: nowSeconds() },
     select: publicUserSelect,
   });
+  return { user, accessToken: signToken(user) };
+}
+
+// Секунды, без миллисекунд: в JWT время выдачи (iat) тоже в секундах
+const nowSeconds = () => new Date(Math.floor(Date.now() / 1000) * 1000);
+
+// ---------- Восстановление пароля по почте ----------
+
+const RESET_TTL_MS = 30 * 60 * 1000;
+
+// Отвечаем одинаково, есть такая почта или нет: по ответу нельзя узнать, кто зарегистрирован.
+// В базе хранится только SHA-256 токена; сам токен есть лишь в письме.
+export async function forgotPassword(email, { origin, lang }) {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true } });
+  if (!user) return;
+  const token = randomBytes(32).toString('base64url');
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetTokenHash: sha256(token), resetTokenExpires: new Date(Date.now() + RESET_TTL_MS) },
+  });
+  const link = `${env.appUrl || origin}/#/reset-password?token=${token}`;
+  await sendMail({ to: user.email, ...resetPasswordEmail({ name: user.name, link, lang }) });
+}
+
+export async function resetPassword({ token, newPassword }) {
+  const user = await prisma.user.findFirst({
+    where: { resetTokenHash: sha256(token), resetTokenExpires: { gt: new Date() } },
+    select: { id: true },
+  });
+  if (!user) throw ApiError.badRequest('Ссылка для сброса пароля недействительна или устарела. Запросите новую');
+  // Токен одноразовый; все прежние сессии отключаются, как при обычной смене пароля
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash: await hashPassword(newPassword),
+      passwordChangedAt: nowSeconds(),
+      resetTokenHash: null,
+      resetTokenExpires: null,
+    },
+  });
+}
+
+// ---------- Вход в два шага при включённой 2FA ----------
+
+// Короткий «пропуск» на второй шаг входа: 5 минут, годится только для /login/2fa
+function signChallenge(user) {
+  return jwt.sign({ sub: String(user.id), purpose: '2fa' }, env.jwtSecret, { algorithm: 'HS256', expiresIn: '5m' });
+}
+
+export async function loginTwoFactor({ challengeToken, code }) {
+  let payload;
+  try {
+    payload = jwt.verify(challengeToken, env.jwtSecret, { algorithms: ['HS256'] });
+  } catch {
+    throw ApiError.unauthorized('Время на ввод кода истекло, войдите снова');
+  }
+  if (payload.purpose !== '2fa') throw ApiError.unauthorized('Недействительный токен');
+  const userId = Number(payload.sub);
+  if (!(await twofa.verifyUserCode(userId, code))) throw ApiError.unauthorized('Неверный код');
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: publicUserSelect });
   return { user, accessToken: signToken(user) };
 }
 
@@ -125,6 +177,11 @@ export async function login({ email, password }) {
   if (!user || !valid) {
     // Одинаковое сообщение для неверного email и неверного пароля.
     throw ApiError.unauthorized('Неверный email или пароль');
+  }
+
+  // Включена 2FA: полноценный токен выдаётся только после кода из приложения
+  if (user.totpEnabled) {
+    return { twoFactorRequired: true, challengeToken: signChallenge(user) };
   }
 
   return { user: toPublicUser(user), accessToken: signToken(user) };

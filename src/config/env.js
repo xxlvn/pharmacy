@@ -19,6 +19,13 @@ export const env = {
   databaseUrl: required('DATABASE_URL'),
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+
+  // Почта (Brevo). Без ключа письма не отправляются: в разработке ссылка печатается в лог сервера.
+  brevoApiKey: process.env.BREVO_API_KEY || '',
+  mailFrom: process.env.MAIL_FROM || '',
+  mailFromName: process.env.MAIL_FROM_NAME || 'Мята',
+  // Адрес сайта для ссылок в письмах; если не задан — берётся из запроса
+  appUrl: (process.env.APP_URL || '').replace(/\/+$/, ''),
 };
 
 export const isProduction = env.nodeEnv === 'production';

@@ -24,6 +24,11 @@ export async function requireAuth(req, res, next) {
     throw ApiError.unauthorized('Недействительный токен');
   }
 
+  // Служебные токены (например, «пропуск» на второй шаг входа с 2FA) доступа к API не дают
+  if (payload.purpose) {
+    throw ApiError.unauthorized('Недействительный токен');
+  }
+
   // Роль и само существование пользователя берём из БД, а не из токена:
   // если админ понизил роль или удалил пользователя, старый токен перестанет давать права.
   const found = await prisma.user.findUnique({

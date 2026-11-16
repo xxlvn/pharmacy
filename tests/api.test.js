@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 process.env.NODE_ENV = 'test';
 const { createApp } = await import('../src/app.js');
 const { prisma } = await import('../src/config/prisma.js');
+const { outbox } = await import('../src/services/mail.service.js');
+const OTPAuth = await import('otpauth');
 
 let server;
 let base;
@@ -384,6 +386,103 @@ test('PATCH /api/auth/me/password — проверки, новый токен, �
   assert.equal((await api('GET', '/api/auth/me', { token: changed.body.accessToken })).status, 200);
   assert.equal((await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'Passw0rd1' } })).status, 401);
   assert.equal((await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'NewPassw0rd' } })).status, 200);
+});
+
+// ---------- Восстановление пароля по почте ----------
+
+test('POST /api/auth/password/forgot + reset — письмо со ссылкой, одноразовый токен, старые сессии отключаются', async () => {
+  const reg = await registerUser('forgot');
+  const before = outbox.length;
+
+  // Неизвестная почта: тот же ответ 200, но письмо не уходит
+  const unknown = await api('POST', '/api/auth/password/forgot', { body: { email: `nobody-${stamp}@example.com` } });
+  assert.equal(unknown.status, 200);
+  assert.equal(outbox.length, before);
+
+  const r = await api('POST', '/api/auth/password/forgot', { body: { email: reg.email } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.message, unknown.body.message);
+  const mail = outbox.at(-1);
+  assert.equal(mail.to, reg.email);
+  const token = mail.text.match(/reset-password\?token=([\w-]+)/)[1];
+  assert.ok(token);
+
+  // В базе — только хеш, не сам токен
+  const stored = await prisma.user.findUnique({ where: { email: reg.email }, select: { resetTokenHash: true } });
+  assert.notEqual(stored.resetTokenHash, token);
+
+  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token: 'x'.repeat(43), newPassword: 'Reset1pass' } })).status, 400);
+  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'short' } })).status, 400);
+
+  await new Promise((res) => setTimeout(res, 1100));
+  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'Reset1pass' } })).status, 200);
+  assert.equal((await api('POST', '/api/auth/password/reset', { body: { token, newPassword: 'Again1pass' } })).status, 400);
+  assert.equal((await api('GET', '/api/auth/me', { token: reg.body.accessToken })).status, 401);
+  assert.equal((await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'Reset1pass' } })).status, 200);
+});
+
+// ---------- Двухфакторная защита ----------
+
+test('2FA: настройка, вход в два шага, защита от повтора кода, резервные коды, отключение', async () => {
+  const reg = await registerUser('twofa');
+  const token = reg.body.accessToken;
+  assert.equal(reg.body.user.totpEnabled, false);
+  assert.equal((await api('POST', '/api/auth/2fa/setup')).status, 401);
+
+  const setup = await api('POST', '/api/auth/2fa/setup', { token });
+  assert.equal(setup.status, 200);
+  assert.match(setup.body.qr, /^data:image\/png;base64,/);
+  assert.match(setup.body.otpauthUrl, /^otpauth:\/\/totp\//);
+  const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(setup.body.secret), digits: 6, period: 30 });
+
+  assert.equal((await api('POST', '/api/auth/2fa/enable', { token, body: { code: '12345' } })).status, 400);
+  const nowCode = totp.generate();
+  const enabled = await api('POST', '/api/auth/2fa/enable', { token, body: { code: nowCode } });
+  assert.equal(enabled.status, 200);
+  assert.equal(enabled.body.recoveryCodes.length, 8);
+  const recovery = enabled.body.recoveryCodes;
+  assert.equal((await api('POST', '/api/auth/2fa/setup', { token })).status, 409);
+  assert.equal((await api('GET', '/api/auth/me', { token })).body.user.totpEnabled, true);
+  assert.deepEqual((await api('GET', '/api/auth/2fa', { token })).body, { enabled: true, recoveryCodesLeft: 8 });
+
+  // Секреты наружу не отдаются
+  const users = await api('GET', '/api/users', { token: adminToken });
+  const listed = JSON.stringify(users.body);
+  assert.ok(!listed.includes('totpSecret') && !listed.includes('recoveryCodes'));
+
+  // Шаг 1: пароль → только «пропуск», без токена доступа
+  const step1 = await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'Passw0rd1' } });
+  assert.equal(step1.status, 200);
+  assert.equal(step1.body.twoFactorRequired, true);
+  assert.equal(step1.body.accessToken, undefined);
+  const { challengeToken } = step1.body;
+  assert.equal((await api('GET', '/api/auth/me', { token: challengeToken })).status, 401);
+
+  const second = (code) => api('POST', '/api/auth/login/2fa', { body: { challengeToken, code } });
+  assert.equal((await second('AAAAA-AAAAA')).status, 401);
+  assert.equal((await second(nowCode)).status, 401, 'Уже использованный код повторно не принимается');
+  assert.equal((await api('POST', '/api/auth/login/2fa', { body: { challengeToken: token, code: nowCode } })).status, 401);
+
+  const nextCode = totp.generate({ timestamp: Date.now() + 30_000 });
+  const ok = await second(nextCode);
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.accessToken);
+  assert.equal(ok.body.user.email, reg.email);
+
+  // Резервный код — одноразовый, регистр и дефис не важны
+  const rc = recovery[0].toLowerCase().replace('-', '');
+  assert.equal((await second(rc)).status, 200);
+  assert.equal((await second(rc)).status, 401);
+  assert.equal((await api('GET', '/api/auth/2fa', { token })).body.recoveryCodesLeft, 7);
+
+  // Отключение: нужен и пароль, и код
+  const disable = (currentPassword, code) => api('POST', '/api/auth/2fa/disable', { token, body: { currentPassword, code } });
+  assert.equal((await disable('WrongPass1', recovery[1])).status, 400);
+  assert.equal((await disable('Passw0rd1', 'BBBBB-BBBBB')).status, 400);
+  assert.equal((await disable('Passw0rd1', recovery[2])).status, 200);
+  const plain = await api('POST', '/api/auth/login', { body: { email: reg.email, password: 'Passw0rd1' } });
+  assert.ok(plain.body.accessToken);
+  assert.equal(plain.body.user.totpEnabled, false);
 });
 
 test('Некорректный JSON (400) и неизвестный маршрут (404)', async () => {
