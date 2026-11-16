@@ -407,40 +407,117 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .account .btn-ghost:hover { border-color: var(--on-dark); }
 }
 
-.account-name {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-  text-align: right;
-  font-size: 14px;
-}
-.account-name small { color: var(--on-dark-muted); font-size: 12px; }
+/* ---------- Аватар и меню аккаунта ---------- */
 
-.account .icon-btn { color: var(--on-dark-muted); }
-@media (hover: hover) and (pointer: fine) {
-  .account .icon-btn:hover { background: rgb(255 255 255 / 0.08); color: var(--on-dark); }
+.account { position: relative; }
+
+.avatar-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out);
 }
+.avatar-btn:active { transform: scale(0.94); }
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px rgb(255 255 255 / 0.18);
+  transition: box-shadow 160ms ease;
+}
+.avatar-btn[aria-expanded='true'] .avatar { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .avatar-btn:hover .avatar { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px rgb(255 255 255 / 0.35); }
+}
+
+/* Выпадающее меню: появляется из правого верхнего угла (от аватара), уходит быстрее, чем появляется */
+.account-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 264px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 16px 40px -12px rgb(25 43 27 / 0.35), 0 0 0 1px rgb(25 43 27 / 0.06);
+  transform-origin: top right;
+  opacity: 0;
+  transform: scale(0.96) translateY(-4px);
+  transition: opacity 120ms ease, transform 120ms var(--ease-out);
+}
+.account-menu.open {
+  opacity: 1;
+  transform: none;
+  transition-duration: 180ms;
+}
+.account-menu-head {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px 14px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.account-menu-head strong { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.account-menu-head span { color: var(--ink-muted); font-size: 14px; overflow-wrap: anywhere; }
+
+.account-menu [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.account-menu [role='menuitem'] .icon { width: 20px; height: 20px; color: var(--ink-muted); }
+.account-menu [role='menuitem'][aria-current] { background: var(--surface-tint); font-weight: 500; }
+.account-menu [role='menuitem']:focus-visible { outline: none; background: var(--surface-tint); }
+.account-menu .danger,
+.account-menu .danger .icon { color: var(--danger); }
+@media (hover: hover) and (pointer: fine) {
+  .account-menu [role='menuitem']:hover { background: #f2f4f0; }
+  .account-menu .danger:hover { background: var(--danger-wash); }
+}
+
+/* Страница аккаунта */
+.account-page { display: grid; gap: 20px; max-width: 640px; }
+.account-card { display: flex; align-items: center; gap: 16px; }
+.account-card h2 { font-size: 22px; font-weight: 600; }
+.avatar-lg { width: 64px; height: 64px; font-size: 26px; box-shadow: none; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 @media (max-width: 767px) {
   .header-row { gap: 12px; }
-  .main-nav {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 45;
-    justify-content: space-around;
-    margin: 0;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-    background: var(--ink);
-    border-top: 1px solid rgb(255 255 255 / 0.08);
-    transform: translateZ(0); /* отдельный слой: меню не дёргается, когда прячется адресная строка */
-  }
-  .main-nav a { font-size: 14px; }
+  /* На телефоне каталог открывается логотипом, отдельная кнопка не нужна */
+  .main-nav { display: none; }
   .header-actions { margin-left: auto; }
-  .account-name { display: none; }
-  body { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
-  body:has(.main-nav[hidden]) { padding-bottom: env(safe-area-inset-bottom, 0px); }
-  /* Без transform на .site-header: он сделал бы шапку контейнером для position: fixed,
-     и нижнее меню (оно внутри шапки) прилипло бы к ней */
+}
+@media (max-width: 400px) {
+  .account-menu { width: min(264px, calc(100vw - 32px)); }
 }
 
 /* ---------- Hero ---------- */
@@ -1353,7 +1430,7 @@ td.actions .icon-btn { width: 36px; height: 36px; }
   pointer-events: none;
 }
 @media (max-width: 767px) {
-  .toaster { left: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); align-items: stretch; }
+  .toaster { left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); align-items: stretch; }
 }
 
 .toast {

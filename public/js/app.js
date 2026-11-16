@@ -6,7 +6,7 @@ import {
   toast, errorToast, renderFormError, setLoading, confirmDialog,
 } from './ui.js';
 import {
-  t, unit, lang, setLang, onLangChange, LANGS,
+  t, unit, lang, setLang, onLangChange, LANGS, fmtDate,
   categoryName, formName, dosageText,
 } from './i18n.js';
 import { PAGES, INFO_LINKS, SUPPORT_EMAIL } from './info.js';
@@ -28,6 +28,7 @@ const routes = [
   { pattern: /^\/login$/, view: renderLogin },
   { pattern: /^\/register$/, view: renderRegister },
   { pattern: /^\/orders$/, view: renderOrders, nav: 'orders', auth: 'user' },
+  { pattern: /^\/account$/, view: renderAccount, auth: 'user' },
   { pattern: /^\/admin$/, view: renderAdmin, nav: 'admin', auth: 'admin' },
   { pattern: /^\/info\/([a-z-]+)$/, view: renderInfo },
 ];
@@ -101,15 +102,27 @@ function applyStaticText() {
 
 // ---------- Шапка: аккаунт и корзина ----------
 
+const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
+
 function renderHeader() {
   const account = document.querySelector('[data-account]');
   if (auth.isAuthed) {
+    const u = auth.user;
     account.innerHTML = `
-      <div class="account-name">
-        <span>${esc(auth.user.name)}</span>
-        <small>${auth.isAdmin ? t('account.admin') : t('account.user')}</small>
-      </div>
-      <button class="icon-btn" data-logout aria-label="${t('account.logout')}" title="${t('account.logout')}">${icon('logout')}</button>`;
+      <button type="button" class="avatar-btn" data-account-toggle aria-haspopup="menu" aria-expanded="false"
+        aria-controls="account-menu" aria-label="${esc(t('account.menu'))}: ${esc(u.name)}">
+        <span class="avatar" aria-hidden="true">${esc(initial(u.name))}</span>
+      </button>
+      <div class="account-menu" id="account-menu" role="menu" hidden>
+        <div class="account-menu-head" role="presentation">
+          <strong>${esc(u.name)}</strong>
+          <span>${esc(u.email)}</span>
+        </div>
+        <a role="menuitem" href="#/account">${icon('user', 'icon icon-sm')}${t('account.profile')}</a>
+        <a role="menuitem" href="#/orders">${icon('receipt', 'icon icon-sm')}${t('nav.orders')}</a>
+        ${auth.isAdmin ? `<a role="menuitem" href="#/admin">${icon('dashboard', 'icon icon-sm')}${t('account.adminPanel')}</a>` : ''}
+        <button type="button" role="menuitem" class="danger" data-logout>${icon('logout', 'icon icon-sm')}${t('account.logout')}</button>
+      </div>`;
   } else {
     account.innerHTML = `<a class="btn btn-ghost btn-sm" href="#/login">${t('account.login')}</a>`;
   }
@@ -123,20 +136,71 @@ function renderHeader() {
   renderCartCount(false);
 }
 
-// Видимость пунктов меню: «Мои заказы» и «Управление» зависят от роли,
-// а «Каталог» скрыт на самой странице каталога (кнопка вела бы туда же, где вы уже есть).
-// Если в меню не осталось ни одного пункта, оно прячется целиком, чтобы на телефоне
-// внизу не висела пустая полоса.
+// «Каталог» в шапке скрыт на самой странице каталога: кнопка вела бы туда же, где вы уже есть.
+// «Мои заказы» и панель управления живут в меню аккаунта.
 function updateNav() {
   const onCatalog = parseHash().path === '/';
-  document.querySelectorAll('.main-nav a').forEach((el) => {
-    const need = el.dataset.auth;
-    if (need) el.hidden = need === 'admin' ? !auth.isAdmin : !auth.isAuthed;
-    if (el.dataset.nav === 'catalog') el.hidden = onCatalog;
-  });
   const nav = document.querySelector('.main-nav');
-  nav.hidden = ![...nav.querySelectorAll('a')].some((a) => !a.hidden);
+  nav.querySelector('[data-nav="catalog"]').hidden = onCatalog;
+  nav.hidden = onCatalog;
+  // подсветка текущего раздела в меню аккаунта
+  document.querySelectorAll('.account-menu a').forEach((a) => {
+    if (a.getAttribute('href') === location.hash) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
 }
+
+// ---------- Меню аккаунта ----------
+// Открывается по клику на аватар; закрывается кликом вне меню, Esc и выбором пункта.
+// ↑/↓ переводят фокус между пунктами, Esc возвращает фокус на аватар.
+
+function accountMenu() {
+  return {
+    btn: document.querySelector('[data-account-toggle]'),
+    menu: document.getElementById('account-menu'),
+  };
+}
+
+function openAccountMenu() {
+  const { btn, menu } = accountMenu();
+  if (!btn || !menu.hidden) return;
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => menu.classList.add('open'));
+  menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+}
+
+function closeAccountMenu({ focusButton = false } = {}) {
+  const { btn, menu } = accountMenu();
+  if (!btn || menu.hidden) return;
+  menu.classList.remove('open');
+  btn.setAttribute('aria-expanded', 'false');
+  setTimeout(() => { if (!menu.classList.contains('open')) menu.hidden = true; }, 130);
+  if (focusButton) btn.focus();
+}
+
+document.addEventListener('click', (e) => {
+  const toggle = e.target.closest('[data-account-toggle]');
+  if (toggle) {
+    const { menu } = accountMenu();
+    return menu.hidden ? openAccountMenu() : closeAccountMenu();
+  }
+  if (e.target.closest('.account-menu [role="menuitem"]') || !e.target.closest('.account-menu')) closeAccountMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+  const { menu } = accountMenu();
+  if (!menu || menu.hidden) return;
+  if (e.key === 'Escape') return closeAccountMenu({ focusButton: true });
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const items = [...menu.querySelectorAll('[role="menuitem"]')];
+  const i = items.indexOf(document.activeElement);
+  const next = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+  items[next].focus();
+});
+
+window.addEventListener('hashchange', () => closeAccountMenu());
 
 function renderCartCount(bump = true) {
   const el = document.querySelector('[data-cart-count]');
@@ -941,6 +1005,39 @@ async function renderOrders({ isCurrent }) {
   });
 
   await load();
+}
+
+// ---------- Аккаунт ----------
+
+function renderAccount() {
+  const u = auth.user;
+  document.title = `${t('account.profile')} — ${t('meta.title')}`;
+  main.innerHTML = `
+    <section class="section">
+      <div class="container view">
+        <h1 class="page-title">${t('account.profile')}</h1>
+        <div class="account-page">
+          <div class="account-card">
+            <span class="avatar avatar-lg" aria-hidden="true">${esc(initial(u.name))}</span>
+            <div>
+              <h2>${esc(u.name)}</h2>
+              <p class="muted">${esc(u.email)}</p>
+            </div>
+          </div>
+          <dl class="doc-req">
+            <div><dt>${t('auth.name')}</dt><dd>${esc(u.name)}</dd></div>
+            <div><dt>${t('auth.email')}</dt><dd>${esc(u.email)}</dd></div>
+            <div><dt>${t('acc.role')}</dt><dd>${u.role === 'ADMIN' ? t('au.admin') : t('au.user')}</dd></div>
+            ${u.createdAt ? `<div><dt>${t('acc.since')}</dt><dd>${fmtDate(u.createdAt, 'date')}</dd></div>` : ''}
+          </dl>
+          <div class="account-actions">
+            <a class="btn btn-primary" href="#/orders">${icon('receipt', 'icon icon-sm')}${t('nav.orders')}</a>
+            ${auth.isAdmin ? `<a class="btn btn-ghost" href="#/admin">${icon('dashboard', 'icon icon-sm')}${t('account.adminPanel')}</a>` : ''}
+            <button type="button" class="btn btn-danger-ghost" data-logout>${icon('logout', 'icon icon-sm')}${t('account.logout')}</button>
+          </div>
+        </div>
+      </div>
+    </section>`;
 }
 
 // ---------- Информационные страницы ----------

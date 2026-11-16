@@ -53,6 +53,11 @@ const D = {
     'account.logout': 'Выйти',
     'account.admin': 'администратор',
     'account.user': 'покупатель',
+    'account.menu': 'Меню аккаунта',
+    'account.profile': 'Аккаунт',
+    'account.adminPanel': 'Панель управления',
+    'acc.role': 'Роль',
+    'acc.since': 'С нами с',
     'toast.loggedOut': 'Вы вышли из аккаунта',
     'toast.loggedIn': 'Вы вошли как {name}',
     'toast.registered': 'Аккаунт создан',
@@ -325,6 +330,11 @@ const D = {
     'account.logout': 'Шығу',
     'account.admin': 'әкімші',
     'account.user': 'сатып алушы',
+    'account.menu': 'Аккаунт мәзірі',
+    'account.profile': 'Аккаунт',
+    'account.adminPanel': 'Басқару панелі',
+    'acc.role': 'Рөлі',
+    'acc.since': 'Бізбен бірге',
     'toast.loggedOut': 'Аккаунттан шықтыңыз',
     'toast.loggedIn': '{name} ретінде кірдіңіз',
     'toast.registered': 'Аккаунт құрылды',
@@ -597,6 +607,11 @@ const D = {
     'account.logout': 'Sign out',
     'account.admin': 'administrator',
     'account.user': 'customer',
+    'account.menu': 'Account menu',
+    'account.profile': 'Account',
+    'account.adminPanel': 'Admin panel',
+    'acc.role': 'Role',
+    'acc.since': 'Member since',
     'toast.loggedOut': 'You signed out',
     'toast.loggedIn': 'Signed in as {name}',
     'toast.registered': 'Account created',
@@ -955,12 +970,14 @@ export function fmtDate(value, style = 'full') {
     const day = d.getDate();
     const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     if (style === 'dayMonth') return `${day} ${KK_MONTHS_SHORT[d.getMonth()]}`;
+    if (style === 'date') return `${day} ${KK_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
     if (style === 'dayMonthWeekday') return `${KK_WEEKDAYS[d.getDay()]}, ${day} ${KK_MONTHS[d.getMonth()]}`;
     return `${day} ${KK_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${time}`;
   }
   const opts = {
     full: { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' },
     dayMonth: { day: 'numeric', month: 'short' },
+    date: { day: 'numeric', month: 'long', year: 'numeric' },
     dayMonthWeekday: { day: 'numeric', month: 'long', weekday: 'short' },
   }[style];
   return new Intl.DateTimeFormat(locale(), opts).format(d);
