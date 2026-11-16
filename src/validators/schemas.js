@@ -37,17 +37,6 @@ export const registerBody = z
   })
   .strict('Недопустимое поле. Роль при регистрации назначать нельзя');
 
-// Смена имени и почты. Для смены почты нужен текущий пароль (проверяется в сервисе).
-// Роль и прочие поля через этот маршрут не меняются.
-export const profileBody = z
-  .object({
-    name: trimmed(2, 100, 'Имя').optional(),
-    email: emailField.optional(),
-    currentPassword: z.string().max(128).optional(),
-  })
-  .strict('Недопустимое поле. Менять можно только имя и почту')
-  .refine((d) => d.name !== undefined || d.email !== undefined, 'Передайте имя или почту');
-
 export const passwordBody = z
   .object({
     currentPassword: z.string({ error: 'Укажите текущий пароль' }).min(1, 'Укажите текущий пароль').max(128),
@@ -233,6 +222,8 @@ export const orderStatusBody = z
 
 export const orderListQuery = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
+  // mine=true — только свои заказы, даже для администратора (блок «Последние заказы» в профиле)
+  mine: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

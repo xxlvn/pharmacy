@@ -48,21 +48,6 @@ export async function register({ email, name, password }) {
   return { user, accessToken: signToken(user) };
 }
 
-// Смена имени и/или почты текущего пользователя.
-export async function updateProfile(userId, { name, email, currentPassword }) {
-  const current = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-  const data = {};
-  if (name !== undefined) data.name = name;
-  if (email !== undefined && email !== current.email) {
-    // Почта — это логин, поэтому её смена требует подтверждения паролем
-    await assertPassword(userId, currentPassword);
-    const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-    if (taken) throw ApiError.conflict('Пользователь с таким email уже зарегистрирован');
-    data.email = email;
-  }
-  return prisma.user.update({ where: { id: userId }, data, select: publicUserSelect });
-}
-
 // Смена пароля. Все токены, выданные раньше, перестают действовать (см. requireAuth),
 // а текущей сессии выдаётся новый токен, чтобы она не прервалась.
 export async function changePassword(userId, { currentPassword, newPassword }) {

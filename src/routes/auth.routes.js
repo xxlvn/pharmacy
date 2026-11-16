@@ -7,7 +7,6 @@ import { requireAuth } from '../middleware/auth.js';
 import {
   registerBody,
   loginBody,
-  profileBody,
   passwordBody,
   twoFactorLoginBody,
   codeBody,
@@ -34,9 +33,8 @@ router.post('/login', authLimiter, validate({ body: loginBody }), ctrl.login);
 router.post('/login/2fa', authLimiter, validate({ body: twoFactorLoginBody }), ctrl.loginTwoFactor);
 router.get('/me', requireAuth, ctrl.me);
 
-// Смена имени/почты и пароля: под тем же ограничением попыток, что и вход,
-// чтобы текущий пароль нельзя было подобрать через эти маршруты
-router.patch('/me', requireAuth, authLimiter, validate({ body: profileBody }), ctrl.updateProfile);
+// Смена пароля: под тем же ограничением попыток, что и вход,
+// чтобы текущий пароль нельзя было подобрать через этот маршрут
 router.patch('/me/password', requireAuth, authLimiter, validate({ body: passwordBody }), ctrl.changePassword);
 
 // Аватарка текущего пользователя: тело запроса — сам файл (JPEG, PNG или WebP до 2 МБ)

@@ -343,30 +343,6 @@ test('POST /api/products — imageUrl только https (400 для http)', asy
   assert.equal(r.status, 400);
 });
 
-test('PATCH /api/auth/me — смена имени и почты (почта только с паролем, без роли)', async () => {
-  const reg = await registerUser('profile');
-  const token = reg.body.accessToken;
-
-  const named = await api('PATCH', '/api/auth/me', { token, body: { name: 'Новое Имя' } });
-  assert.equal(named.status, 200);
-  assert.equal(named.body.user.name, 'Новое Имя');
-
-  assert.equal((await api('PATCH', '/api/auth/me', { body: { name: 'Гость' } })).status, 401);
-  assert.equal((await api('PATCH', '/api/auth/me', { token, body: { role: 'ADMIN' } })).status, 400);
-
-  const newEmail = `profile-new-${stamp}@example.com`;
-  createdEmails.push(newEmail);
-  assert.equal((await api('PATCH', '/api/auth/me', { token, body: { email: newEmail } })).status, 400);
-  assert.equal((await api('PATCH', '/api/auth/me', { token, body: { email: newEmail, currentPassword: 'WrongPass1' } })).status, 400);
-  assert.equal((await api('PATCH', '/api/auth/me', { token, body: { email: createdEmails[0], currentPassword: 'Passw0rd1' } })).status, 409);
-
-  const moved = await api('PATCH', '/api/auth/me', { token, body: { email: newEmail, currentPassword: 'Passw0rd1' } });
-  assert.equal(moved.status, 200);
-  assert.equal(moved.body.user.email, newEmail);
-  assert.equal(moved.body.user.passwordHash, undefined);
-  assert.equal((await api('POST', '/api/auth/login', { body: { email: newEmail, password: 'Passw0rd1' } })).status, 200);
-});
-
 test('PATCH /api/auth/me/password — проверки, новый токен, старые токены отзываются', async () => {
   const reg = await registerUser('password');
   const oldToken = reg.body.accessToken;
@@ -568,6 +544,16 @@ test('PATCH /api/orders/:id/cancel — оплаченный заказ поку�
   assert.equal(own.status, 200, 'владелец скачивает квитанцию без ключа');
   assert.equal((await api('PATCH', `/api/orders/${id}/cancel`, { token: adminToken })).status, 200);
   await prisma.order.deleteMany({ where: { id } });
+});
+
+test('GET /api/orders?mine=true — администратор видит только свои заказы', async () => {
+  const all = await api('GET', '/api/orders?limit=100', { token: adminToken });
+  const mine = await api('GET', '/api/orders?mine=true&limit=100', { token: adminToken });
+  assert.equal(mine.status, 200);
+  const me = (await api('GET', '/api/auth/me', { token: adminToken })).body.user;
+  assert.ok(mine.body.data.every((o) => o.userId === me.id));
+  assert.ok(all.body.meta.total >= mine.body.meta.total);
+  assert.equal((await api('GET', '/api/orders?mine=yes', { token: adminToken })).status, 400);
 });
 
 test('Некорректный JSON (400) и неизвестный маршрут (404)', async () => {

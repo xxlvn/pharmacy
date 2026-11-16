@@ -86,9 +86,9 @@ export async function create(user, { items, address, phone, comment, email }) {
 }
 
 // Пользователь видит только свои заказы, администратор — все.
-export async function list(user, { status, page, limit }) {
+export async function list(user, { status, page, limit, mine }) {
   const where = {};
-  if (user.role !== 'ADMIN') where.userId = user.id;
+  if (user.role !== 'ADMIN' || mine) where.userId = user.id;
   if (status) where.status = status;
 
   const [total, data] = await prisma.$transaction([

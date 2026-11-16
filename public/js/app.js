@@ -1155,83 +1155,63 @@ function renderAccount() {
   main.innerHTML = `
     <section class="section">
       <div class="container view">
-        <h1 class="page-title">${t('account.profile')}</h1>
-        <div class="account-page">
-          <div class="account-card">
-            ${avatarHtml(u, 'avatar avatar-lg')}
-            <div class="account-card-body">
-              <h2>${esc(u.name)}</h2>
-              <p class="muted">${esc(u.email)}</p>
-              <div class="avatar-actions">
-                <label class="btn btn-ghost btn-sm file-btn">
-                  ${icon('upload', 'icon icon-sm')}${u.avatarUrl ? t('acc.changePhoto') : t('acc.addPhoto')}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" data-avatar-file>
-                </label>
-                ${u.avatarUrl ? `<button type="button" class="btn btn-danger-ghost btn-sm" data-avatar-remove>${t('acc.removePhoto')}</button>` : ''}
-              </div>
-              <p class="hint" data-avatar-status aria-live="polite">${t('acc.photoHint')}</p>
+        <header class="account-hero">
+          ${avatarHtml(u, 'avatar avatar-xl')}
+          <div class="account-hero-body">
+            <h1>${esc(u.name)}</h1>
+            <p class="muted">${u.role === 'ADMIN' ? t('au.admin') : t('acc.buyer')}</p>
+            <div class="avatar-actions">
+              <label class="btn btn-ghost btn-sm file-btn">
+                ${icon('upload', 'icon icon-sm')}${u.avatarUrl ? t('acc.changePhoto') : t('acc.addPhoto')}
+                <input type="file" accept="image/jpeg,image/png,image/webp" data-avatar-file>
+              </label>
+              ${u.avatarUrl ? `<button type="button" class="btn btn-danger-ghost btn-sm" data-avatar-remove>${t('acc.removePhoto')}</button>` : ''}
             </div>
+            <p class="hint" data-avatar-status aria-live="polite"></p>
           </div>
-          <form class="panel form" data-profile-form novalidate>
-            <h2 class="panel-title">${t('acc.profileTitle')}</h2>
-            <div class="form-error" data-form-error hidden></div>
-            <div class="form-row">
-              <div class="field">
-                <label for="acc-name">${t('auth.name')}</label>
-                <input class="input" id="acc-name" name="name" autocomplete="name" value="${esc(u.name)}" required>
-              </div>
-              <div class="field">
-                <label for="acc-email">${t('auth.email')}</label>
-                <input class="input" id="acc-email" name="email" type="email" autocomplete="email" value="${esc(u.email)}" required>
-              </div>
-            </div>
-            <div class="field" data-email-confirm hidden>
-              <label for="acc-email-pass">${t('acc.currentPassword')}</label>
-              <input class="input" id="acc-email-pass" name="currentPassword" type="password" autocomplete="current-password">
-              <span class="hint">${t('acc.emailConfirm')}</span>
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary" type="submit">${t('acc.saveProfile')}</button>
-              <span class="hint" data-form-status aria-live="polite"></span>
-            </div>
-          </form>
+        </header>
 
-          <form class="panel form" data-password-form novalidate>
-            <h2 class="panel-title">${t('acc.passwordTitle')}</h2>
-            <div class="form-error" data-form-error hidden></div>
-            <input type="text" name="username" autocomplete="username" value="${esc(u.email)}" hidden>
-            <div class="field">
-              <label for="acc-cur">${t('acc.currentPassword')}</label>
-              <input class="input" id="acc-cur" name="currentPassword" type="password" autocomplete="current-password" required>
-            </div>
-            <div class="form-row">
+        <div class="account-grid">
+          <div class="account-col">
+            <section class="panel">
+              <h2 class="panel-title">${t('acc.profileTitle')}</h2>
+              <dl class="kv">
+                <div><dt>Email</dt><dd>${esc(u.email)}</dd></div>
+                <div><dt>${t('acc.ordersCount')}</dt><dd data-orders-count>—</dd></div>
+                ${u.createdAt ? `<div><dt>${t('acc.since')}</dt><dd>${fmtDate(u.createdAt, 'date')}</dd></div>` : ''}
+              </dl>
+            </section>
+
+            <form class="panel form" data-password-form novalidate>
+              <h2 class="panel-title">${t('acc.passwordTitle')}</h2>
+              <div class="form-error" data-form-error hidden></div>
+              <input type="text" name="username" autocomplete="username" value="${esc(u.email)}" hidden>
+              <div class="field">
+                <label for="acc-cur">${t('acc.currentPassword')}</label>
+                <input class="input" id="acc-cur" name="currentPassword" type="password" autocomplete="current-password" required>
+              </div>
               <div class="field">
                 <label for="acc-new">${t('acc.newPassword')}</label>
                 <input class="input" id="acc-new" name="newPassword" type="password" autocomplete="new-password" required aria-describedby="acc-new-hint">
-                <span class="hint" id="acc-new-hint">${t('auth.pwHint')}</span>
               </div>
               <div class="field">
                 <label for="acc-rep">${t('acc.repeatPassword')}</label>
-                <input class="input" id="acc-rep" name="repeatPassword" type="password" autocomplete="new-password" required>
+                <input class="input" id="acc-rep" name="repeatPassword" type="password" autocomplete="new-password" required aria-describedby="acc-new-hint">
+                <span class="hint" id="acc-new-hint">${t('auth.pwHint')}</span>
               </div>
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary" type="submit">${t('acc.changePassword')}</button>
-              <span class="hint" data-form-status aria-live="polite"></span>
-            </div>
-          </form>
+              <button class="btn btn-primary btn-block" type="submit">${t('acc.changePassword')}</button>
+            </form>
 
-          <section class="panel" data-tfa-panel aria-live="polite"></section>
-
-          <dl class="doc-req">
-            <div><dt>${t('acc.role')}</dt><dd>${u.role === 'ADMIN' ? t('au.admin') : t('au.user')}</dd></div>
-            ${u.createdAt ? `<div><dt>${t('acc.since')}</dt><dd>${fmtDate(u.createdAt, 'date')}</dd></div>` : ''}
-          </dl>
-          <div class="account-actions">
-            <a class="btn btn-primary" href="#/orders">${icon('receipt', 'icon icon-sm')}${t('nav.orders')}</a>
-            ${auth.isAdmin ? `<a class="btn btn-ghost" href="#/admin">${icon('dashboard', 'icon icon-sm')}${t('account.adminPanel')}</a>` : ''}
-            <button type="button" class="btn btn-danger-ghost" data-logout>${icon('logout', 'icon icon-sm')}${t('account.logout')}</button>
+            <section class="panel" data-tfa-panel aria-live="polite"></section>
           </div>
+
+          <section class="panel recent-orders">
+            <div class="recent-head">
+              <h2 class="panel-title">${t('acc.recentOrders')}</h2>
+              <a class="text-link" href="#/orders">${t('acc.allOrders')} →</a>
+            </div>
+            <div class="recent-list" data-recent>${'<div class="skeleton skeleton-row"></div>'.repeat(2)}</div>
+          </section>
         </div>
       </div>
     </section>`;
@@ -1260,41 +1240,7 @@ function renderAccount() {
     }
   });
 
-  // --- Личные данные: имя и почта ---
-  const profile = main.querySelector('[data-profile-form]');
-  const emailConfirm = profile.querySelector('[data-email-confirm]');
-  profile.email.addEventListener('input', () => {
-    // пароль нужен только если почта действительно меняется
-    emailConfirm.hidden = profile.email.value.trim().toLowerCase() === u.email;
-  });
-  profile.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = profile.querySelector('[type="submit"]');
-    const errBox = profile.querySelector('[data-form-error]');
-    const status = profile.querySelector('[data-form-status]');
-    renderFormError(errBox, null);
-    status.textContent = '';
-    const body = {};
-    const name = profile.name.value.trim();
-    const email = profile.email.value.trim().toLowerCase();
-    if (name !== u.name) body.name = name;
-    if (email !== u.email) {
-      body.email = email;
-      body.currentPassword = profile.currentPassword.value;
-    }
-    if (!Object.keys(body).length) return (status.textContent = t('acc.nothingChanged'));
-    setLoading(btn, true);
-    try {
-      const { user } = await api('/auth/me', { method: 'PATCH', body });
-      auth.set(auth.token, user);
-      renderAccount();
-      toast(t('acc.profileSaved'));
-    } catch (err) {
-      renderFormError(errBox, err);
-    } finally {
-      setLoading(btn, false);
-    }
-  });
+  mountRecentOrders(main.querySelector('[data-recent]'), main.querySelector('[data-orders-count]'));
 
   // --- Пароль ---
   const pass = main.querySelector('[data-password-form]');
@@ -1336,6 +1282,104 @@ function renderAccount() {
       busy(false);
     }
   });
+}
+
+// ---------- Последние заказы в профиле ----------
+// Только свои заказы (mine=true), даже у администратора. Действия как в «Моих заказах»:
+// оплатить или отменить неоплаченный, скачать квитанцию оплаченного.
+
+const RECENT_LIMIT = 5;
+
+function recentOrderHtml(o) {
+  const first = o.items[0]?.product ?? {};
+  const more = o.items.length - 1;
+  const canPay = !o.paidAt && ['PENDING', 'CONFIRMED'].includes(o.status);
+  const canCancel = !o.paidAt && o.status === 'PENDING';
+  const payBadge = o.status === 'CANCELLED'
+    ? ''
+    : o.paidAt
+      ? `<span class="pay-badge is-paid">${t('pay.paidShort')}</span>`
+      : `<span class="pay-badge">${t('pay.onDelivery')}</span>`;
+  return `
+    <article class="recent-row" data-order="${o.id}">
+      ${productArt({ ...first, stock: 1 }, 'thumb')}
+      <div class="recent-main">
+        <h3><a href="#/orders">${esc(first.name ?? t('orders.order', { id: o.id }))}${more > 0 ? ` <span class="muted">${t('acc.andMore', { n: more })}</span>` : ''}</a></h3>
+        <div class="recent-meta">
+          ${statusBadge(o.status)}
+          ${payBadge}
+          <span class="recent-total">${tenge(o.total)}</span>
+          <span>${fmtDate(o.createdAt, 'date')}</span>
+          <span>${t('orders.order', { id: o.id })}</span>
+        </div>
+      </div>
+      <div class="recent-actions">
+        ${canPay ? `<button class="btn btn-dark btn-sm" data-pay>${t('pay.payOrderShort')}</button>` : ''}
+        ${canCancel ? `<button class="btn btn-ghost btn-sm" data-cancel>${t('acc.cancel')}</button>` : ''}
+        ${o.paidAt ? `<button class="btn btn-dark btn-sm" data-receipt>${icon('download', 'icon icon-sm')}${t('acc.receipt')}</button>` : ''}
+      </div>
+    </article>`;
+}
+
+function mountRecentOrders(box, countEl) {
+  let orders = [];
+  const load = async () => {
+    try {
+      const { data, meta } = await api('/orders', { query: { mine: true, limit: RECENT_LIMIT } });
+      if (!box.isConnected) return;
+      orders = data;
+      countEl.textContent = meta.total;
+      box.innerHTML = data.length
+        ? data.map(recentOrderHtml).join('')
+        : emptyState('box', t('orders.emptyTitle'), t('orders.emptyText'), `<a class="btn btn-primary" href="#/">${t('common.toCatalog')}</a>`);
+    } catch (err) {
+      if (box.isConnected) box.innerHTML = `<p class="muted">${esc(localizeError(err).message)}</p>`;
+    }
+  };
+
+  box.addEventListener('click', async (e) => {
+    const row = e.target.closest('[data-order]');
+    const btn = e.target.closest('button');
+    if (!row || !btn) return;
+    const o = orders.find((x) => x.id === Number(row.dataset.order));
+    if (!o) return;
+
+    if (btn.hasAttribute('data-pay')) {
+      const items = o.items.map((it) => ({ ...it.product, qty: it.quantity, price: it.price }));
+      openCheckout(o, { itemsHtml: checkoutItemsHtml(items), onDone: (paid) => paid && load() });
+      return;
+    }
+    if (btn.hasAttribute('data-receipt')) {
+      setLoading(btn, true);
+      try {
+        await downloadReceipt(o.id);
+      } catch (err) {
+        errorToast(err);
+      } finally {
+        setLoading(btn, false);
+      }
+      return;
+    }
+    if (btn.hasAttribute('data-cancel')) {
+      const ok = await confirmDialog({
+        title: t('orders.cancelTitle', { id: o.id }),
+        text: t('orders.cancelText'),
+        confirmText: t('orders.cancel'),
+      });
+      if (!ok) return;
+      setLoading(btn, true);
+      try {
+        await api(`/orders/${o.id}/cancel`, { method: 'PATCH' });
+        toast(t('orders.cancelled'));
+        load();
+      } catch (err) {
+        errorToast(err);
+        setLoading(btn, false);
+      }
+    }
+  });
+
+  load();
 }
 
 // ---------- Двухфакторная защита в аккаунте ----------
