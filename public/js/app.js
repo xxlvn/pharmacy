@@ -55,6 +55,8 @@ async function router({ keepScroll = false } = {}) {
   // Новая страница открывается сверху; фильтры каталога и смена языка прокрутку не сбрасывают.
   if (path !== lastPath && !keepScroll) window.scrollTo(0, 0);
   lastPath = path;
+  // вход и регистрация — на весь экран, без шапки и подвала сайта
+  document.body.classList.toggle('is-auth', path === '/login' || path === '/register');
 
   document.querySelectorAll('[data-nav]').forEach((a) => {
     if (route && a.dataset.nav === route.nav) a.setAttribute('aria-current', 'page');
@@ -894,6 +896,69 @@ function checkoutItemsHtml(items) {
 
 // ---------- Вход и регистрация ----------
 
+// Экран входа и регистрации: две половины на весь экран, без шапки и подвала сайта.
+// Слева тёмная панель с медленно плывущими капсулами, справа форма.
+const CAPSULES = Array.from({ length: 16 }, (_, i) => {
+  // псевдослучайно, но одинаково при каждом показе — без «прыжков» при смене языка
+  const r = (n) => ((Math.sin(i * 12.9898 + n * 78.233) * 43758.5453) % 1 + 1) % 1;
+  return {
+    x: Math.round(r(1) * 92),
+    size: 0.6 + r(2) * 0.9,
+    dur: Math.round(22 + r(3) * 22),
+    delay: -Math.round(r(4) * 40),
+    rot: Math.round(r(5) * 360),
+    spin: Math.round((r(6) - 0.5) * 120),
+  };
+});
+
+function authShell(kind, formHtml) {
+  const capsules = CAPSULES.map((c) => `<i style-vars="--x:${c.x}%;--s:${c.size.toFixed(2)};--d:${c.dur}s;--dl:${c.delay}s;--r:${c.rot}deg;--spin:${c.spin}deg"></i>`).join('');
+  const html = `
+    <div class="auth" data-auth="${kind}">
+      <aside class="auth-aside" aria-hidden="true">
+        <a class="auth-logo" href="#/" tabindex="-1">
+          <svg class="logo-mark" viewBox="0 0 32 32"><rect x="11" y="3" width="10" height="26" rx="3"/><rect x="3" y="11" width="26" height="10" rx="3"/></svg>
+          <span>${t('brand')}</span>
+        </a>
+        <div class="auth-capsules">${capsules}</div>
+        <h2>${t(`auth.${kind}Headline`)}</h2>
+        <p>${t(`auth.${kind}Text`)}</p>
+      </aside>
+      <div class="auth-main">
+        <div class="auth-top">
+          <a class="auth-back" href="#/">${icon('arrowLeft', 'icon icon-sm')}${t('common.toCatalog')}</a>
+          <div class="header-lang" role="group" aria-label="${t('foot.lang')}">
+            ${LANGS.map((l) => `<button type="button" data-lang="${l.code}" lang="${l.code}" aria-pressed="${l.code === lang()}" title="${l.label}">${l.short}</button>`).join('')}
+          </div>
+        </div>
+        <div class="auth-card auth-form">${formHtml}</div>
+      </div>
+    </div>`;
+  return html;
+}
+
+// CSP запрещает inline style, поэтому CSS-переменные капсул ставятся через CSSOM после вставки
+function applyStyleVars(root) {
+  root.querySelectorAll('[style-vars]').forEach((el) => {
+    for (const pair of el.getAttribute('style-vars').split(';')) {
+      const [k, v] = pair.split(':');
+      el.style.setProperty(k, v);
+    }
+    el.removeAttribute('style-vars');
+  });
+}
+
+// 0 — пусто, 1 — слабый … 4 — надёжный
+function passwordLevel(pw) {
+  if (!pw) return 0;
+  let score = 0;
+  if (pw.length >= 8) score += 1;
+  if (/\p{L}/u.test(pw) && /\d/.test(pw)) score += 1;
+  if (pw.length >= 12) score += 1;
+  if (/[^\p{L}\d]/u.test(pw) || (/\p{Lu}/u.test(pw) && /\p{Ll}/u.test(pw))) score += 1;
+  return Math.max(1, score);
+}
+
 function afterLogin() {
   const redirect = sessionStorage.getItem('mint.redirect');
   sessionStorage.removeItem('mint.redirect');
@@ -904,9 +969,7 @@ function renderLogin() {
   document.title = `${t('auth.loginTitle')} — ${t('meta.title')}`;
   if (auth.isAuthed) return afterLogin();
 
-  main.innerHTML = `
-    <div class="auth-wrap view">
-      <div class="auth-card">
+  main.innerHTML = authShell('login', `
         <h1>${t('auth.loginTitle')}</h1>
         <p class="sub">${t('auth.loginSub')}</p>
         <form class="form" data-login novalidate>
@@ -919,12 +982,11 @@ function renderLogin() {
             <label for="password">${t('auth.password')}</label>
             <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
           </div>
-          <button class="btn btn-primary btn-block" type="submit">${t('auth.loginBtn')}</button>
+          <button class="btn btn-dark btn-block btn-lg" type="submit">${t('auth.loginBtn')}</button>
         </form>
-        <p class="switch">${t('auth.noAccount')} <a href="#/register">${t('auth.toRegister')}</a></p>
-      </div>
-    </div>`;
+        <p class="switch">${t('auth.noAccount')} <a href="#/register">${t('auth.toRegister')}</a></p>`);
 
+  applyStyleVars(main);
   const form = main.querySelector('[data-login]');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1008,9 +1070,7 @@ function renderRegister() {
   document.title = `${t('auth.registerTitle')} — ${t('meta.title')}`;
   if (auth.isAuthed) return afterLogin();
 
-  main.innerHTML = `
-    <div class="auth-wrap view">
-      <div class="auth-card">
+  main.innerHTML = authShell('register', `
         <h1>${t('auth.registerTitle')}</h1>
         <p class="sub">${t('auth.registerSub')}</p>
         <form class="form" data-register novalidate>
@@ -1025,16 +1085,29 @@ function renderRegister() {
           </div>
           <div class="field">
             <label for="password">${t('auth.password')}</label>
-            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint">
+            <input class="input" id="password" name="password" type="password" autocomplete="new-password" required aria-describedby="pw-hint pw-level">
+            <div class="strength" data-strength data-level="0" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <span class="hint" id="pw-hint">${t('auth.pwHint')}</span>
+            <span class="visually-hidden" id="pw-level" aria-live="polite"></span>
           </div>
-          <button class="btn btn-primary btn-block" type="submit">${t('auth.registerBtn')}</button>
+          <button class="btn btn-dark btn-block btn-lg" type="submit">${t('auth.registerBtn')}</button>
+          <p class="auth-legal">${t('auth.legal', {
+            offer: `<a href="#/info/offer">${t('auth.legalOffer')}</a>`,
+            privacy: `<a href="#/info/privacy">${t('auth.legalPrivacy')}</a>`,
+          })}</p>
         </form>
-        <p class="switch">${t('auth.haveAccount')} <a href="#/login">${t('auth.loginBtn')}</a></p>
-      </div>
-    </div>`;
+        <p class="switch">${t('auth.haveAccount')} <a href="#/login">${t('auth.loginBtn')}</a></p>`);
 
+  applyStyleVars(main);
   const form = main.querySelector('[data-register]');
+  // Надёжность пароля: 4 деления, как подсказка, а не как требование (требования проверяет сервер)
+  const meter = form.querySelector('[data-strength]');
+  const levelText = form.querySelector('#pw-level');
+  form.password.addEventListener('input', () => {
+    const level = passwordLevel(form.password.value);
+    meter.dataset.level = level;
+    levelText.textContent = level ? t(`auth.strength${level}`) : '';
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type="submit"]');
